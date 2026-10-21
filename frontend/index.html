@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" content="#f4ede6"/>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='7' fill='%23404f1d'/%3E%3Cellipse cx='12' cy='12.5' rx='7.5' ry='5.8' fill='none' stroke='%23d4de72' stroke-width='1.8'/%3E%3Cellipse cx='9.4' cy='12.5' rx='1.4' ry='2' fill='%23d4de72'/%3E%3Cellipse cx='14.6' cy='12.5' rx='1.4' ry='2' fill='%23d4de72'/%3E%3C/svg%3E"/>
+<meta name="description" content="SuinoTech — monitoramento de suínos por baia com Arduino, painel ao vivo e histórico. TCC da Etec Prof. Edson Galvão."/>
+<title>SuinoTech — Suinocultura Inteligente | Etec Prof. Edson Galvão</title>
+<script>
+  document.documentElement.classList.add('js');
+  try { if (sessionStorage.getItem('st-intro')) document.documentElement.classList.add('intro-done'); } catch (e) {}
+  /* Tema: claro por padrão; aplica o escuro salvo antes da primeira pintura */
+  try {
+    if (localStorage.getItem('st-tema') === 'escuro') {
+      document.documentElement.dataset.theme = 'dark';
+      document.querySelector('meta[name="theme-color"]').content = '#151a0c';
+    }
+  } catch (e) {}
+</script>
+<!-- Three.js como módulo ES (usado por js/suino3d.js) -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/lenis@1.1.13/dist/lenis.css"/>
+<link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+
+<!-- Ícones reutilizados -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- Suíno de perfil (usado nas vagas das baias) -->
+  <symbol id="i-pig" viewBox="0 0 32 22">
+    <path d="M4.2 9.2c-2.6-.8-3.4 1.6-1.6 2.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+    <rect x="7" y="14" width="3" height="7" rx="1.3" fill="currentColor"/>
+    <rect x="11.5" y="14" width="3" height="7" rx="1.3" fill="currentColor"/>
+    <rect x="17" y="14" width="3" height="7" rx="1.3" fill="currentColor"/>
+    <rect x="21.2" y="14" width="3" height="7" rx="1.3" fill="currentColor"/>
+    <ellipse cx="14" cy="11" rx="10" ry="7" fill="currentColor"/>
+    <circle cx="24" cy="10" r="5.5" fill="currentColor"/>
+    <path d="M21 5.6 23.6 1.4 26.2 6z" fill="currentColor"/>
+    <rect x="27.4" y="8.2" width="4.2" height="4.8" rx="1.8" fill="currentColor"/>
+  </symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-in" viewBox="0 0 24 24"><path d="M17 7 7 17M7 9v8h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-barn" viewBox="0 0 24 24"><path d="M3 10.5 12 4l9 6.5V20H3z M9 20v-6h6v6 M9 14l6 6 M15 14l-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 9v4m0 3.5h.01M10.3 4.2 2.6 18a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0V8zM12 18v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <!-- Telemetria -->
+  <symbol id="i-temp" viewBox="0 0 24 24"><path d="M14 14.8V5a2 2 0 1 0-4 0v9.8a4 4 0 1 0 4 0zM12 9v7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M7 3h10a2 2 0 0 1 2 2v9l-7 7-7-7V5a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="8" r="1.6" fill="currentColor"/></symbol>
+  <symbol id="i-lungs" viewBox="0 0 24 24"><path d="M12 4v8m0 0c-1.5 0-2.5-1-3.5-2.5C7 7.2 4 8.8 3.6 13c-.4 4 .3 6.5 2.9 6.5 2.4 0 3.5-1.8 3.5-4.5V12zm0 0c1.5 0 2.5-1 3.5-2.5 1.5-2.3 4.5-.7 4.9 3.5.4 4-.3 6.5-2.9 6.5-2.4 0-3.5-1.8-3.5-4.5V12z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-scale" viewBox="0 0 24 24"><path d="M5 7h14l1.5 12.5a1 1 0 0 1-1 1.1H4.5a1 1 0 0 1-1-1.1zM9 7a3 3 0 0 1 6 0M12 11.5l1.8 2.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-growth" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8M15 7h6v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-activity" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4.5h-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M5 12.5a10 10 0 0 1 14 0M8 15.5a6 6 0 0 1 8 0M2 9.5a14 14 0 0 1 20 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="19" r="1.4" fill="currentColor"/></symbol>
+</svg>
+
+<!-- Pré-carregamento (só na 1ª visita da sessão; some sozinho se algo falhar) -->
+<div class="preloader" id="preloader" aria-hidden="true">
+  <div class="preloader-inner">
+    <span class="brand-mark"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="12.5" rx="7.5" ry="5.8" fill="none" stroke="currentColor" stroke-width="1.8"/><ellipse cx="9.4" cy="12.5" rx="1.4" ry="2" fill="currentColor"/><ellipse cx="14.6" cy="12.5" rx="1.4" ry="2" fill="currentColor"/></svg></span>
+    <span class="preloader-count num"><span id="preloader-count">0</span>%</span>
+    <span class="preloader-bar"><i id="preloader-bar"></i></span>
+    <span class="preloader-label">Preparando a granja</span>
+  </div>
+</div>
+
+<a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
+
+<!-- ══════════════ NAVEGAÇÃO ══════════════ -->
+<nav id="navbar" aria-label="Navegação principal">
+  <a href="#inicio" class="brand" aria-label="SuinoTech — início">
+    <span class="brand-mark">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="12.5" rx="7.5" ry="5.8" fill="none" stroke="currentColor" stroke-width="1.8"/><ellipse cx="9.4" cy="12.5" rx="1.4" ry="2" fill="currentColor"/><ellipse cx="14.6" cy="12.5" rx="1.4" ry="2" fill="currentColor"/></svg>
+    </span>
+    <span class="brand-name">Suino<span>Tech</span></span>
+  </a>
+
+  <div class="nav-links" id="nav-menu">
+    <a href="#sobre" class="nav-link">Sobre</a>
+    <a href="#problemas" class="nav-link">Desafios</a>
+    <a href="#solucao" class="nav-link">Solução</a>
+    <a href="#dashboard" class="nav-link">Painel</a>
+    <a href="#tecnologia" class="nav-link">Tecnologia</a>
+    <a href="#equipe" class="nav-link">Equipe</a>
+    <a href="historico.html" class="nav-link">Histórico</a>
+    <a href="#contato" class="btn btn-primary btn-sm nav-cta--menu">Ver projeto</a>
+  </div>
+
+  <div class="nav-actions">
+    <button type="button" class="icon-btn theme-toggle" id="theme-toggle" aria-pressed="false" aria-label="Tema escuro" title="Alternar tema escuro">
+      <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z"/></svg>
+      <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></svg>
+    </button>
+    <a href="#contato" class="btn btn-primary btn-sm nav-cta">Ver projeto</a>
+    <button type="button" class="icon-btn nav-toggle" aria-expanded="false" aria-controls="nav-menu" aria-label="Abrir menu">
+      <span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<main id="conteudo">
+
+<!-- ══════════════ HERO — suíno 3D com telemetria ══════════════ -->
+<section class="hero tone-dark" id="inicio" data-nav="dark">
+  <canvas class="hero-trail" id="hero-trail" aria-hidden="true"></canvas>
+  <div class="hero-glow" aria-hidden="true"></div>
+
+  <div class="container hero-top">
+    <div class="hero-copy">
+      <p class="eyebrow" data-enter style="--i:0">TCC 2025 · Técnico em Informática</p>
+      <h1 class="title-xl hero-title" data-split="hero">Suinocultura inteligente, <em>baia por baia.</em></h1>
+    </div>
+    <div class="hero-side" data-enter style="--i:2">
+      <p class="lead">Monitoramento em tempo real com IoT, análise preditiva e automação aplicados à suinocultura moderna — transformando dados em decisões.</p>
+      <div class="hero-actions">
+        <a href="#dashboard" class="btn btn-primary">Ver painel ao vivo <svg class="arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        <a href="#solucao" class="btn btn-secondary">Explorar o projeto</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage" id="stage" data-enter style="--i:3">
+    <div class="stage-gl" id="stage-gl"></div>
+    <img class="stage-fallback" src="assets/img/suino-retrato.jpg" width="1280" height="1706" alt="Suíno rosado olhando para a câmera em uma granja ao ar livre"/>
+    <div class="stage-hud" id="stage-hud">
+      <svg class="stage-lines" id="stage-lines" aria-hidden="true"></svg>
+      <ul class="tele" id="tele" aria-label="Leituras dos sensores do animal (demonstração)">
+        <li class="tele-card" data-sensor="temp">
+          <button type="button" class="tele-btn" aria-expanded="false" aria-controls="tele-temp-mais">
+            <span class="tele-head"><svg aria-hidden="true"><use href="#i-temp"/></svg><span class="tele-label">Temperatura</span><span class="tele-state">Normal</span></span>
+            <span class="tele-value"><b data-valor>38,8</b><small>°C</small></span>
+          </button>
+          <div class="tele-more" id="tele-temp-mais">
+            <svg class="tele-spark" viewBox="0 0 120 30" preserveAspectRatio="none" aria-hidden="true"><path/></svg>
+            <dl><div><dt>Faixa ideal</dt><dd>38,5 – 39,5 °C</dd></div><div><dt>Sensor</dt><dd>Infravermelho na testa</dd></div></dl>
+          </div>
+        </li>
+        <li class="tele-card" data-sensor="brinco">
+          <button type="button" class="tele-btn" aria-expanded="false" aria-controls="tele-brinco-mais">
+            <span class="tele-head"><svg aria-hidden="true"><use href="#i-tag"/></svg><span class="tele-label">Brinco RFID</span><span class="tele-state">Lido</span></span>
+            <span class="tele-value"><b>#027</b><small>Baia A</small></span>
+          </button>
+          <div class="tele-more" id="tele-brinco-mais">
+            <dl><div><dt>Lote</dt><dd>14 · terminação</dd></div><div><dt>Idade</dt><dd>142 dias</dd></div><div><dt>Leitor</dt><dd>RC522 na porteira</dd></div></dl>
+          </div>
+        </li>
+        <li class="tele-card" data-sensor="resp">
+          <button type="button" class="tele-btn" aria-expanded="false" aria-controls="tele-resp-mais">
+            <span class="tele-head"><svg aria-hidden="true"><use href="#i-lungs"/></svg><span class="tele-label">Respiração</span><span class="tele-state">Normal</span></span>
+            <span class="tele-value"><b data-valor>32</b><small>rpm</small></span>
+          </button>
+          <div class="tele-more" id="tele-resp-mais">
+            <svg class="tele-spark" viewBox="0 0 120 30" preserveAspectRatio="none" aria-hidden="true"><path/></svg>
+            <dl><div><dt>Faixa ideal</dt><dd>25 – 40 rpm</dd></div><div><dt>No modelo</dt><dd>O tórax se move neste ritmo</dd></div></dl>
+          </div>
+        </li>
+        <li class="tele-card" data-sensor="peso">
+          <button type="button" class="tele-btn" aria-expanded="false" aria-controls="tele-peso-mais">
+            <span class="tele-head"><svg aria-hidden="true"><use href="#i-scale"/></svg><span class="tele-label">Peso atual</span><span class="tele-state">Meta 120</span></span>
+            <span class="tele-value"><b data-valor>112,5</b><small>kg</small></span>
+          </button>
+          <div class="tele-more" id="tele-peso-mais">
+            <svg class="tele-spark" viewBox="0 0 120 30" preserveAspectRatio="none" aria-hidden="true"><path/></svg>
+            <dl><div><dt>Sensor</dt><dd>Célula de carga HX711</dd></div><div><dt>Abate previsto</dt><dd>em ~9 dias</dd></div></dl>
+          </div>
+        </li>
+        <li class="tele-card" data-sensor="gpd">
+          <button type="button" class="tele-btn" aria-expanded="false" aria-controls="tele-gpd-mais">
+            <span class="tele-head"><svg aria-hidden="true"><use href="#i-growth"/></svg><span class="tele-label">Ganho diário</span><span class="tele-state">Bom</span></span>
+            <span class="tele-value"><b data-valor>812</b><small>g/dia</small></span>
+          </button>
+          <div class="tele-more" id="tele-gpd-mais">
+            <svg class="tele-spark" viewBox="0 0 120 30" preserveAspectRatio="none" aria-hidden="true"><path/></svg>
+            <dl><div><dt>Média do lote</dt><dd>790 g/dia</dd></div><div><dt>Conversão</dt><dd>2,6 kg ração / kg</dd></div></dl>
+          </div>
+        </li>
+        <li class="tele-card" data-sensor="atividade">
+          <button type="button" class="tele-btn" aria-expanded="false" aria-controls="tele-ativ-mais">
+            <span class="tele-head"><svg aria-hidden="true"><use href="#i-activity"/></svg><span class="tele-label">Atividade</span><span class="tele-state">Ativo</span></span>
+            <span class="tele-value"><b data-valor>72</b><small>%</small></span>
+            <span class="tele-meter" aria-hidden="true"><i data-barra></i></span>
+          </button>
+          <div class="tele-more" id="tele-ativ-mais">
+            <svg class="tele-spark" viewBox="0 0 120 30" preserveAspectRatio="none" aria-hidden="true"><path/></svg>
+            <dl><div><dt>Tempo em pé</dt><dd>5,8 h hoje</dd></div><div><dt>Sensor</dt><dd>Acelerômetro na pata</dd></div></dl>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="container hero-bottom">
+    <a href="#dashboard" class="live-card" data-enter style="--i:4">
+      <span class="live-card-icon"><svg aria-hidden="true"><use href="#i-barn"/></svg></span>
+      <span>
+        <span class="live-card-label"><span class="live-dot" aria-hidden="true"></span> Agora no curral</span>
+        <span class="live-card-value num" id="hero-live-total">—</span>
+      </span>
+    </a>
+    <div class="stage-controls" role="toolbar" aria-label="Controles do modelo 3D" data-enter style="--i:5">
+      <button type="button" class="ctl" id="btn-respiracao" aria-pressed="true"><svg aria-hidden="true"><use href="#i-pulse"/></svg><span>Respiração <span data-estado>ativa</span></span></button>
+      <button type="button" class="ctl" id="btn-rotacao" aria-pressed="true"><svg aria-hidden="true"><use href="#i-rotate"/></svg><span>Giro <span data-estado>ativo</span></span></button>
+      <button type="button" class="ctl" id="btn-sensores" aria-pressed="true"><svg aria-hidden="true"><use href="#i-eye"/></svg><span>Sensores <span data-estado>visíveis</span></span></button>
+      <button type="button" class="ctl ctl--icon" id="btn-resetar-visao" aria-label="Recentralizar a visão" title="Recentralizar a visão"><svg aria-hidden="true"><use href="#i-target"/></svg></button>
+    </div>
+    <p class="hero-note" data-enter style="--i:6">Arraste para girar · clique num sensor<br/><span>Leituras do animal simuladas · contagem do curral real</span></p>
+  </div>
+</section>
+
+<!-- ══════════════ MANIFESTO (palavras acendem ao rolar) ══════════════ -->
+<section class="statement" aria-label="Manifesto">
+  <div class="container">
+    <p class="statement-text" data-scrub-words>Quanto a sua granja pode render quando <em>nenhum sinal</em> do animal passa despercebido?</p>
+  </div>
+</section>
+
+<!-- ══════════════ NÚMEROS ══════════════ -->
+<div class="stats">
+  <div class="container stats-grid">
+    <div class="stat"><div class="stat-value"><span class="counter" data-target="97">97</span><span class="unit">%</span></div><div class="stat-label">Acurácia de monitoramento</div></div>
+    <div class="stat"><div class="stat-value"><span class="counter" data-target="24">24</span><span class="unit">/7</span></div><div class="stat-label">Vigilância contínua</div></div>
+    <div class="stat"><div class="stat-value"><span class="counter" data-target="30">30</span><span class="unit">%</span></div><div class="stat-label">Redução de perdas</div></div>
+    <div class="stat"><div class="stat-value"><span class="counter" data-target="4">4</span><span class="unit">×</span></div><div class="stat-label">Velocidade de resposta</div></div>
+  </div>
+</div>
+
+<!-- ══════════════ SOBRE ══════════════ -->
+<section id="sobre" class="section">
+  <div class="container about-grid">
+    <div class="about-copy">
+      <p class="eyebrow">Sobre o projeto</p>
+      <h2 class="title-lg" data-split>Quando dados encontram o campo</h2>
+      <p class="lead reveal" style="margin-top:24px;">O SuinoTech é um sistema de monitoramento inteligente desenvolvido como Trabalho de Conclusão de Curso na Etec Professor Edson Galvão, propondo a digitalização completa do ciclo produtivo suíno — do nascimento ao abate.</p>
+      <p class="muted reveal d1">Utilizando sensores IoT, microcontroladores, cloud computing e dashboards em tempo real, o projeto endereça os principais gargalos da suinocultura tradicional com tecnologia acessível e escalável.</p>
+      <dl class="facts reveal d2">
+        <div><dt>Curso</dt><dd>Técnico em Informática</dd></div>
+        <div><dt>Ano</dt><dd>2025</dd></div>
+        <div><dt>Instituição</dt><dd>Centro Paula Souza</dd></div>
+      </dl>
+    </div>
+
+    <figure class="photo photo--tall" data-clip>
+      <div class="photo-media" data-parallax="0.08">
+        <img src="assets/img/suino-retrato.jpg" width="1280" height="1706" loading="lazy" decoding="async" alt="Suíno rosado com focinho sujo de terra olhando de perto para a câmera"/>
+      </div>
+      <figcaption class="photo-chip">
+        <span class="ear-tag" aria-hidden="true">27</span>
+        <span><strong>Animal monitorado</strong><small>38,7 °C · 84,3 kg · atividade normal</small></span>
+        <span class="live-dot" aria-hidden="true"></span>
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ══════════════ FAIXA: DO PASTO AO PAINEL ══════════════ -->
+<section class="band tone-dark" data-nav="dark" aria-label="Do pasto ao painel">
+  <div class="band-media" data-band>
+    <img src="assets/img/campo-entardecer.jpg" width="1920" height="1440" loading="lazy" decoding="async" alt="Campo de pastagem recém-cortado ao entardecer, com galpões ao fundo"/>
+  </div>
+  <div class="container band-copy">
+    <p class="eyebrow">Do pasto ao painel</p>
+    <h2 class="title-xl" data-split>Cada baia vira um fluxo de dados.</h2>
+  </div>
+  <div class="container trio">
+    <article class="trio-item reveal">
+      <span class="trio-icon"><svg aria-hidden="true"><use href="#i-wifi"/></svg></span>
+      <h3>Sensores no galpão</h3>
+      <p>Sensores na porteira de cada baia registram toda entrada e saída, sem anotação em papel.</p>
+    </article>
+    <article class="trio-item reveal d1">
+      <span class="trio-icon"><svg aria-hidden="true"><use href="#i-activity"/></svg></span>
+      <h3>Tempo real</h3>
+      <p>O Arduino envia cada evento pelo USB e o painel atualiza na hora, via WebSocket.</p>
+    </article>
+    <article class="trio-item reveal d2">
+      <span class="trio-icon"><svg aria-hidden="true"><use href="#i-alert"/></svg></span>
+      <h3>Alertas automáticos</h3>
+      <p>Quando uma baia se aproxima da capacidade máxima, o sistema avisa antes do problema.</p>
+    </article>
+  </div>
+</section>
+
+<!-- ══════════════ DESAFIOS ══════════════ -->
+<section id="problemas" class="section section--alt">
+  <div class="container problems-grid">
+    <div class="problems-aside">
+      <div class="section-head">
+        <p class="eyebrow">Diagnóstico do setor</p>
+        <h2 class="title-lg" data-split>Desafios da suinocultura tradicional</h2>
+        <p class="lead reveal">Identificamos os principais pontos críticos que comprometem a eficiência e rentabilidade das granjas convencionais.</p>
+      </div>
+      <figure class="photo photo--wide" data-clip>
+        <div class="photo-media" data-parallax="0.08">
+          <img src="assets/img/leitoes-palha.jpg" width="1920" height="1440" loading="lazy" decoding="async" alt="Leitões malhados dormindo juntos na palha ao lado da porca"/>
+        </div>
+        <figcaption class="photo-caption">Leitões na maternidade: a fase em que um problema sanitário se espalha mais rápido.</figcaption>
+      </figure>
+    </div>
+    <div class="problems">
+      <article class="problem reveal">
+        <span class="problem-num">01</span>
+        <div>
+          <h3>Controle manual</h3>
+          <p>Dependência de registros em papel e observação subjetiva, gerando dados imprecisos e processos lentos com alta margem de erro humano.</p>
+          <span class="chip chip--warn">Erro humano: alto</span>
+        </div>
+      </article>
+      <article class="problem reveal">
+        <span class="problem-num">02</span>
+        <div>
+          <h3>Falhas sanitárias</h3>
+          <p>Dificuldade em detectar doenças precocemente coloca em risco todo o plantel. A biosseguridade depende de vigilância constante que humanos não conseguem manter.</p>
+          <span class="chip">Risco epidêmico: crítico</span>
+        </div>
+      </article>
+      <article class="problem reveal">
+        <span class="problem-num">03</span>
+        <div>
+          <h3>Desperdício de insumos</h3>
+          <p>Má gestão de ração e medicamentos. Variações climáticas sem ajuste automatizado resultam em perdas financeiras silenciosas e acumulativas.</p>
+          <span class="chip chip--warn">Perda estimada: 15–20%</span>
+        </div>
+      </article>
+      <article class="problem reveal">
+        <span class="problem-num">04</span>
+        <div>
+          <h3>Baixa eficiência produtiva</h3>
+          <p>Sem integração tecnológica, o Ganho de Peso Diário (GPD) fica abaixo do potencial genético do plantel, comprometendo a rentabilidade total da operação.</p>
+          <span class="chip chip--warn">Potencial ocioso: elevado</span>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ SOLUÇÃO ══════════════ -->
+<section id="solucao" class="section tone-dark section--deep" data-nav="dark">
+  <div class="container solution-grid">
+    <div>
+      <p class="eyebrow">Nossa solução</p>
+      <h2 class="title-lg" data-split>Tecnologia que transforma a granja</h2>
+      <p class="lead reveal" style="margin:20px 0 36px;">Uma plataforma integrada que conecta sensores físicos a dashboards inteligentes, dando ao produtor visibilidade total e controle preciso de sua operação.</p>
+
+      <div class="accordion" data-accordion>
+        <div class="acc-item open">
+          <button type="button" class="acc-trigger" aria-expanded="true" aria-controls="acc-1" id="acc-1-btn">
+            <span class="acc-num">01</span><span class="acc-title">Monitoramento biométrico em tempo real</span>
+            <svg class="acc-icon" aria-hidden="true"><use href="#i-plus"/></svg>
+          </button>
+          <div class="acc-panel" id="acc-1" role="region" aria-labelledby="acc-1-btn"><div><p>Sensores de temperatura, peso e atividade monitoram cada animal continuamente, disparando alertas automáticos diante de anomalias.</p></div></div>
+        </div>
+        <div class="acc-item">
+          <button type="button" class="acc-trigger" aria-expanded="false" aria-controls="acc-2" id="acc-2-btn">
+            <span class="acc-num">02</span><span class="acc-title">Controle ambiental automatizado</span>
+            <svg class="acc-icon" aria-hidden="true"><use href="#i-plus"/></svg>
+          </button>
+          <div class="acc-panel" id="acc-2" role="region" aria-labelledby="acc-2-btn"><div><p>Temperatura, umidade e ventilação do galpão são ajustados em tempo real pelos dados dos sensores, mantendo o conforto térmico ideal.</p></div></div>
+        </div>
+        <div class="acc-item">
+          <button type="button" class="acc-trigger" aria-expanded="false" aria-controls="acc-3" id="acc-3-btn">
+            <span class="acc-num">03</span><span class="acc-title">Gestão sanitária preditiva</span>
+            <svg class="acc-icon" aria-hidden="true"><use href="#i-plus"/></svg>
+          </button>
+          <div class="acc-panel" id="acc-3" role="region" aria-labelledby="acc-3-btn"><div><p>Algoritmos identificam padrões que precedem doenças, antecipando intervenções veterinárias antes que surtos se desenvolvam.</p></div></div>
+        </div>
+        <div class="acc-item">
+          <button type="button" class="acc-trigger" aria-expanded="false" aria-controls="acc-4" id="acc-4-btn">
+            <span class="acc-num">04</span><span class="acc-title">Rastreabilidade total do plantel</span>
+            <svg class="acc-icon" aria-hidden="true"><use href="#i-plus"/></svg>
+          </button>
+          <div class="acc-panel" id="acc-4" role="region" aria-labelledby="acc-4-btn"><div><p>Histórico completo por animal: nascimento, pesagens, medicações, ciclos reprodutivos e projeções de abate com dados auditáveis.</p></div></div>
+        </div>
+        <div class="acc-item">
+          <button type="button" class="acc-trigger" aria-expanded="false" aria-controls="acc-5" id="acc-5-btn">
+            <span class="acc-num">05</span><span class="acc-title">Dashboard de inteligência operacional</span>
+            <svg class="acc-icon" aria-hidden="true"><use href="#i-plus"/></svg>
+          </button>
+          <div class="acc-panel" id="acc-5" role="region" aria-labelledby="acc-5-btn"><div><p>Painel centralizado com indicadores-chave, tendências, alertas e relatórios gerados automaticamente para tomada de decisão ágil.</p></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arquitetura: o dado sobe do sensor até a tela -->
+    <div class="arch reveal d2" id="arch-diagram">
+      <div class="arch-head"><h3>Arquitetura do sistema</h3><span>do sensor à tela</span></div>
+      <div class="arch-layer arch-layer--app">
+        <div><strong>Camada de apresentação</strong><small>Web Dashboard · Mobile App · Alertas SMS/Push</small></div><span class="arch-step">4</span>
+      </div>
+      <div class="arch-link arch-link--a" aria-hidden="true"><span class="arch-packet"></span></div>
+      <div class="arch-layer arch-layer--proc">
+        <div><strong>Camada de processamento</strong><small>API REST · Análise Preditiva · Regras de Negócio</small></div><span class="arch-step">3</span>
+      </div>
+      <div class="arch-link arch-link--b" aria-hidden="true"><span class="arch-packet"></span></div>
+      <div class="arch-layer arch-layer--data">
+        <div><strong>Camada de dados</strong><small>Banco de Dados · Cloud Storage · Time Series</small></div><span class="arch-step">2</span>
+      </div>
+      <div class="arch-link arch-link--c" aria-hidden="true"><span class="arch-packet"></span></div>
+      <div class="arch-layer arch-layer--iot">
+        <div><strong>Camada física (IoT)</strong><small>Arduino · ESP32 · Sensores DHT · RFID · LoRa</small></div><span class="arch-step">1</span>
+      </div>
+      <div class="arch-tags">
+        <span class="tag">MQTT Protocol</span><span class="tag">Wi-Fi / LoRa</span><span class="tag">Cloud Backend</span><span class="tag">Real-time Sync</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ PAINEL AO VIVO ══════════════ -->
+<section id="dashboard" class="section">
+  <div class="container">
+    <div class="section-head section-head--split">
+      <div>
+        <p class="eyebrow">Painel de controle</p>
+        <h2 class="title-lg" data-split>Painel da granja ao vivo</h2>
+        <p class="lead">Dados reais recebidos do Arduino em tempo real, via WebSocket. Sem hardware conectado? Use os botões de simulação no card de status.</p>
+      </div>
+      <a href="historico.html" class="link-arrow">Histórico e relatórios completos <svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
+    </div>
+
+    <div class="dash-toolbar">
+      <span class="live"><span class="live-dot live-dot--muted" id="dash-live-dot" aria-hidden="true"></span><span id="dash-live-texto">Conectando ao servidor…</span></span>
+      <span class="dash-toolbar-meta">Galpão 01 · 4 baias · capacidade de 30 animais por baia</span>
+    </div>
+
+    <div class="kpis">
+      <div class="card kpi--total">
+        <div class="card-label">Total no curral — todas as baias <svg aria-hidden="true"><use href="#i-barn"/></svg></div>
+        <div class="kpi-value" id="dash-total-curral" aria-live="polite">0<span class="unit" id="dash-total-unidade"> suínos</span></div>
+        <div class="kpi-sub" id="dash-total-sub">Aguardando primeiro evento…</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Entradas hoje <svg aria-hidden="true"><use href="#i-in"/></svg></div>
+        <div class="kpi-value" id="dash-entradas-hoje">0<span class="suffix"> registros</span></div>
+        <span class="status-badge" id="dash-entradas-badge">Sem movimentação ainda</span>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill" id="dash-entradas-barra"></div></div>
+        <div class="progress-legend" id="dash-entradas-legenda">0% do fluxo de hoje</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Saídas hoje <svg aria-hidden="true"><use href="#i-out"/></svg></div>
+        <div class="kpi-value" id="dash-saidas-hoje">0<span class="suffix"> registros</span></div>
+        <span class="status-badge" id="dash-saidas-badge">Sem movimentação ainda</span>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill progress-bar-fill--clay" id="dash-saidas-barra"></div></div>
+        <div class="progress-legend" id="dash-saidas-legenda">0% do fluxo de hoje</div>
+      </div>
+      <div class="card" id="dash-alertas-card" data-alerta="nao">
+        <div class="card-label">Alertas ativos <svg aria-hidden="true"><use href="#i-alert"/></svg></div>
+        <div class="kpi-value dash-alert-count" id="dash-alertas-contagem">0<span class="suffix"> alertas</span></div>
+        <div id="dash-alertas-lista" style="margin-top:12px;" aria-live="polite">
+          <div class="alerta-vazio">Nenhuma baia próxima da capacidade máxima.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dash-main">
+      <!-- Planta do galpão: cada suíno ocupa uma vaga real -->
+      <div class="card">
+        <div class="barn-head">
+          <div>
+            <h3>Ocupação por baia</h3>
+            <p>Planta do galpão · cada ícone é um animal no curral</p>
+          </div>
+          <div class="barn-legend" aria-hidden="true">
+            <span><i style="background:var(--ok)"></i>Normal</span>
+            <span><i style="background:var(--warn)"></i>≥ 85%</span>
+            <span><i style="background:var(--crit)"></i>Lotada</span>
+          </div>
+        </div>
+        <div class="barn">
+          <div class="barn-aisle" aria-hidden="true"><span>Corredor</span></div>
+          <div id="dash-baias-lista">
+            <div class="pen-placeholder">Carregando baias…</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-side">
+        <div class="card">
+          <div class="chart-head"><h3>Movimentações por hora</h3><span>últimas 7h</span></div>
+          <div class="mini-chart" id="dash-mini-chart">
+            <div class="mini-bar"></div><div class="mini-bar"></div><div class="mini-bar"></div><div class="mini-bar"></div>
+            <div class="mini-bar"></div><div class="mini-bar"></div><div class="mini-bar"></div>
+          </div>
+          <div class="mini-chart-axis" id="dash-mini-chart-eixo" aria-hidden="true">
+            <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">Status do sistema <svg aria-hidden="true"><use href="#i-plug"/></svg></div>
+          <div class="status-line">
+            <span id="dash-status-dot" aria-hidden="true"></span>
+            <span class="status-text" id="dash-status-texto" role="status">Verificando navegador…</span>
+          </div>
+          <div class="sensor-row">
+            <span class="sensor-row-label">Último evento</span>
+            <span class="sensor-row-val" id="dash-ultimo-evento">—</span>
+          </div>
+          <div class="dash-actions">
+            <button type="button" class="btn btn-primary btn-sm" id="dash-btn-conectar-arduino">
+              <svg aria-hidden="true"><use href="#i-plug"/></svg><span class="btn-label">Conectar Arduino (USB)</span>
+            </button>
+          </div>
+          <div class="dash-actions" style="margin-top:8px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="dash-btn-simular-entrada"><svg aria-hidden="true"><use href="#i-plus"/></svg>Simular entrada</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="dash-btn-simular-saida"><svg aria-hidden="true"><use href="#i-minus"/></svg>Simular saída</button>
+          </div>
+          <p class="dash-note">A conexão com o Arduino é feita direto pelo navegador (Chrome/Edge) — não precisa configurar porta serial em arquivo nenhum.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="dash-footer">
+      <a href="historico.html" class="btn btn-primary">Ver histórico e relatórios completos <svg class="arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ FASES ══════════════ -->
+<section id="fases" class="section section--alt">
+  <div class="container">
+    <div class="section-head">
+      <p class="eyebrow">Cronograma</p>
+      <h2 class="title-lg" data-split>Fases do projeto</h2>
+    </div>
+    <ol class="phases" style="list-style:none;">
+      <li class="phases-track" aria-hidden="true"></li>
+      <li class="phase">
+        <span class="phase-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="phase-step">Fase 01 · Concluída</span>
+        <h3>Pesquisa de campo</h3>
+        <p>Levantamento de necessidades com produtores e revisão bibliográfica sobre suinocultura e IoT.</p>
+      </li>
+      <li class="phase">
+        <span class="phase-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="phase-step">Fase 02 · Concluída</span>
+        <h3>Prototipagem IoT</h3>
+        <p>Montagem do hardware com Arduino/ESP32, sensores DHT22, balança load cell e módulo RFID.</p>
+      </li>
+      <li class="phase">
+        <span class="phase-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="phase-step">Fase 03 · Concluída</span>
+        <h3>Desenvolvimento UI/UX</h3>
+        <p>Criação do dashboard, integração com backend e validação do sistema de alertas em ambiente controlado.</p>
+      </li>
+      <li class="phase phase--current">
+        <span class="phase-dot"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="4"/></svg></span>
+        <span class="phase-step">Fase 04 · Em andamento</span>
+        <h3>Entrega &amp; pitch</h3>
+        <p>Apresentação final para banca avaliadora, demonstração ao vivo do sistema e publicação do artigo técnico.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ══════════════ TECNOLOGIA ══════════════ -->
+<section id="tecnologia" class="section">
+  <div class="container">
+    <div class="section-head">
+      <p class="eyebrow">Stack tecnológico</p>
+      <h2 class="title-lg" data-split>Tecnologias utilizadas</h2>
+      <p class="lead reveal">Cada camada da solução foi construída com ferramentas selecionadas para confiabilidade, custo-benefício e aplicabilidade em contexto rural.</p>
+    </div>
+
+    <div class="tabs reveal" data-tabs>
+      <div class="tablist" role="tablist" aria-label="Camadas da tecnologia">
+        <button type="button" class="tab" role="tab" id="tab-hw" aria-controls="panel-hw" aria-selected="true">Hardware / IoT</button>
+        <button type="button" class="tab" role="tab" id="tab-net" aria-controls="panel-net" aria-selected="false" tabindex="-1">Comunicação</button>
+        <button type="button" class="tab" role="tab" id="tab-back" aria-controls="panel-back" aria-selected="false" tabindex="-1">Backend</button>
+        <button type="button" class="tab" role="tab" id="tab-front" aria-controls="panel-front" aria-selected="false" tabindex="-1">Frontend</button>
+        <button type="button" class="tab" role="tab" id="tab-ai" aria-controls="panel-ai" aria-selected="false" tabindex="-1">Inteligência</button>
+        <button type="button" class="tab" role="tab" id="tab-ops" aria-controls="panel-ops" aria-selected="false" tabindex="-1">Infraestrutura</button>
+        <span class="tab-indicator" aria-hidden="true"></span>
+      </div>
+
+      <div class="tabpanel" role="tabpanel" id="panel-hw" aria-labelledby="tab-hw" tabindex="0">
+        <div><span class="tabpanel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg></span><h3>Camada física</h3><p class="muted">Sensores e microcontroladores no galpão</p></div>
+        <ul class="tool-list"><li>Arduino Uno</li><li>ESP32</li><li>DHT22</li><li>Load Cell HX711</li><li>RFID RC522</li><li>LoRa SX1278</li></ul>
+      </div>
+      <div class="tabpanel" role="tabpanel" id="panel-net" aria-labelledby="tab-net" tabindex="0" hidden>
+        <div><span class="tabpanel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M5 12.5a10 10 0 0 1 14 0M8 15.5a6 6 0 0 1 8 0M2 9.5a14 14 0 0 1 20 0"/><circle cx="12" cy="19" r="1.4" fill="currentColor"/></svg></span><h3>Protocolos &amp; rede</h3><p class="muted">Como o dado sai do galpão</p></div>
+        <ul class="tool-list"><li>MQTT</li><li>HTTP/REST</li><li>Wi-Fi 802.11n</li><li>LoRaWAN</li><li>WebSocket</li></ul>
+      </div>
+      <div class="tabpanel" role="tabpanel" id="panel-back" aria-labelledby="tab-back" tabindex="0" hidden>
+        <div><span class="tabpanel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></span><h3>Servidor &amp; dados</h3><p class="muted">Recebe, guarda e distribui os eventos</p></div>
+        <ul class="tool-list"><li>Node.js</li><li>Python</li><li>MySQL</li><li>InfluxDB</li><li>Mosquitto MQTT</li><li>Firebase</li></ul>
+      </div>
+      <div class="tabpanel" role="tabpanel" id="panel-front" aria-labelledby="tab-front" tabindex="0" hidden>
+        <div><span class="tabpanel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18M9 22h6M12 18v4"/></svg></span><h3>Interface &amp; dashboard</h3><p class="muted">O que o produtor vê e usa</p></div>
+        <ul class="tool-list"><li>HTML5 / CSS3</li><li>JavaScript ES6+</li><li>Three.js (3D)</li><li>GSAP</li><li>Chart.js</li></ul>
+      </div>
+      <div class="tabpanel" role="tabpanel" id="panel-ai" aria-labelledby="tab-ai" tabindex="0" hidden>
+        <div><span class="tabpanel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M3 20h18M6 16l4-5 3 3 5-7"/></svg></span><h3>Análise &amp; IA</h3><p class="muted">Tendências, anomalias e previsões</p></div>
+        <ul class="tool-list"><li>Python Pandas</li><li>Scikit-learn</li><li>Regressão Linear</li><li>Detecção de Anomalias</li><li>Previsão de Peso</li></ul>
+      </div>
+      <div class="tabpanel" role="tabpanel" id="panel-ops" aria-labelledby="tab-ops" tabindex="0" hidden>
+        <div><span class="tabpanel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 9.5 4.3 4.3 0 0 0 7 18z"/></svg></span><h3>Cloud &amp; DevOps</h3><p class="muted">Onde o sistema roda</p></div>
+        <ul class="tool-list"><li>AWS IoT Core</li><li>Docker</li><li>Raspberry Pi</li><li>GitHub Actions</li><li>Nginx</li></ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ EQUIPE ══════════════ -->
+<section id="equipe" class="section section--alt">
+  <div class="container">
+    <div class="section-head">
+      <p class="eyebrow">Os autores</p>
+      <h2 class="title-lg" data-split>Equipe do projeto</h2>
+      <p class="lead reveal">Alunos do Curso Técnico em Informática — Etec Professor Edson Galvão, Itapetininga - SP.</p>
+    </div>
+    <div class="team">
+      <div class="card member reveal"><span class="ear-tag">A</span><strong>Aluno Nome Sobrenome</strong><span>Hardware &amp; IoT</span></div>
+      <div class="card member reveal d1"><span class="ear-tag">B</span><strong>Aluno Nome Sobrenome</strong><span>Backend &amp; Cloud</span></div>
+      <div class="card member reveal d2"><span class="ear-tag">C</span><strong>Aluno Nome Sobrenome</strong><span>Frontend &amp; UX</span></div>
+      <div class="card member member--advisor reveal d3"><span class="ear-tag">P</span><strong>Prof(a). Nome do Orientador</strong><span>Orientador(a) · Etec Professor Edson Galvão · Itapetininga - SP</span></div>
+    </div>
+
+    <div class="inst">
+      <div class="card inst-card reveal">
+        <span class="inst-logo">CPS</span>
+        <div><strong>Centro Paula Souza</strong><span>Centro Estadual de Educação Tecnológica Paula Souza · Governo do Estado de São Paulo</span></div>
+      </div>
+      <div class="card inst-card reveal d1">
+        <span class="inst-logo">ETEC<br/>EEG</span>
+        <div><strong>Etec Professor Edson Galvão</strong><span>Itapetininga — São Paulo · Curso Técnico em Informática</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ CTA ══════════════ -->
+<section id="contato" class="cta-photo tone-dark" data-nav="dark">
+  <div class="cta-photo-media" data-parallax="0.1">
+    <img src="assets/img/matriz-pasto.jpg" width="1920" height="1401" loading="lazy" decoding="async" alt="Porca malhada pastando em um gramado verde"/>
+  </div>
+  <div class="container cta-photo-inner">
+    <p class="eyebrow">Projeto aberto</p>
+    <h2 class="title-xl" data-split>Pronto para explorar cada detalhe?</h2>
+    <p class="lead reveal">Acesse a documentação técnica completa, código-fonte e relatório científico do projeto SuinoTech.</p>
+    <div class="cta-actions reveal d1">
+      <a href="#" class="btn btn-primary">Documentação técnica <svg class="arrow" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      <a href="https://github.com/NicoDoBalacobaco/Suinotech-monitoramento" class="btn btn-secondary" target="_blank" rel="noopener noreferrer">Código no GitHub</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ══════════════ RODAPÉ ══════════════ -->
+<footer class="tone-dark" data-nav="dark">
+  <div class="container">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a href="#inicio" class="brand" aria-label="SuinoTech — início">
+          <span class="brand-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="12.5" rx="7.5" ry="5.8" fill="none" stroke="currentColor" stroke-width="1.8"/><ellipse cx="9.4" cy="12.5" rx="1.4" ry="2" fill="currentColor"/><ellipse cx="14.6" cy="12.5" rx="1.4" ry="2" fill="currentColor"/></svg></span>
+          <span class="brand-name">Suino<span>Tech</span></span>
+        </a>
+        <p>Trabalho de Conclusão de Curso — Suinocultura Inteligente com IoT e Análise de Dados. Etec Professor Edson Galvão · Centro Paula Souza.</p>
+      </div>
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h4>Navegação</h4>
+          <a href="#sobre">Sobre o projeto</a><a href="#problemas">Desafios</a><a href="#solucao">Solução</a><a href="#dashboard">Painel</a>
+        </div>
+        <div class="footer-col">
+          <h4>Documentos</h4>
+          <a href="#">Artigo científico</a><a href="#">Relatório técnico</a><a href="#">Código fonte</a><a href="#">Apresentação</a>
+        </div>
+        <div class="footer-col">
+          <h4>Institucional</h4>
+          <a href="https://www.cps.sp.gov.br" target="_blank" rel="noopener">Centro Paula Souza</a><a href="#">Etec Ed. Galvão</a><a href="#equipe">Equipe</a>
+        </div>
+      </div>
+    </div>
+    <p class="footer-wordmark" aria-hidden="true">SuinoTech</p>
+    <div class="footer-bottom">
+      <span>© 2025 SuinoTech — TCC Etec Prof. Edson Galvão · Itapetininga - SP. Todos os direitos reservados.</span>
+      <span>Fotos: Wikimedia Commons (domínio público, CC0) · Modelo 3D gerado por código</span>
+    </div>
+  </div>
+</footer>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/ScrollTrigger.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/SplitText.min.js" defer></script>
+<script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js" defer></script>
+<script src="js/main.js" defer></script>
+<script src="js/motion.js" defer></script>
+<script src="js/dashboard.js" defer></script>
+<script src="js/arduino-serial.js" defer></script>
+<script type="module" src="js/suino3d.js"></script>
+</body>
+</html>
