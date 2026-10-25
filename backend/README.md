@@ -1,92 +1,79 @@
 # Backend — SuinoTech
 
-Node.js + Express + Socket.IO. Este servidor faz 3 coisas ao mesmo tempo:
+Node.js + Express + Socket.IO. Um único processo faz 3 coisas:
 
 1. Serve o site (pasta `../frontend`) em `http://localhost:3000`
 2. Expõe a API REST (`/api/...`)
-3. Distribui os eventos novos para todo mundo conectado, em tempo real,
-   via WebSocket
+3. Distribui cada evento novo, em tempo real, para todas as telas abertas
+   (WebSocket)
 
-A conexão com o Arduino (USB) acontece **direto no navegador** (Chrome
-ou Edge), usando a Web Serial API — por isso o backend não tem nenhuma
-dependência nativa/compilada: só pacotes JavaScript puros, então o
-`npm install` é rápido e funciona em qualquer computador, sem precisar
-instalar Visual Studio Build Tools nem nada do tipo.
+A leitura do Arduino (USB) acontece **no navegador** (Chrome ou Edge),
+pela Web Serial API. Por isso o backend só tem pacotes JavaScript puros —
+sem dependência nativa nem compilação na instalação.
 
-## 1. Instalar
+## Instalar, configurar e rodar
 
 Requer [Node.js](https://nodejs.org) 18 ou mais recente.
 
 ```bash
 cd backend
 npm install
-```
-
-## 2. Configurar
-
-```bash
-cp .env.example .env
-```
-
-Não tem muito o que configurar — por padrão o site sobe na porta 3000.
-
-## 3. Rodar
-
-```bash
+cp .env.example .env   # por padrão o site sobe na porta 3000
 npm start
 ```
 
-Acesse **http://localhost:3000** no Chrome ou Edge. Na seção Dashboard,
-clique em "🔌 Conectar Arduino (USB)" para ligar o hardware de verdade
-(veja `hardware/README.md`).
+Acesse **http://localhost:3000** no Chrome ou Edge.
 
-### Sem o Arduino por perto? Use o simulador
-
-Em um segundo terminal, com o servidor já rodando:
-
-```bash
-npm run simulate
-```
-
-Isso gera eventos de entrada/saída falsos a cada poucos segundos, para
-testar e demonstrar o painel funcionando. Os botões "+ Simular Entrada /
-Saída" no próprio site fazem a mesma coisa, sob demanda.
+| Comando | O que faz |
+|---|---|
+| `npm start` | Sobe o servidor |
+| `npm run dev` | Sobe o servidor e reinicia sozinho ao salvar um arquivo |
+| `npm run simulate` | Gera eventos falsos a cada 2–5 s (com o servidor já rodando) |
+| `npm test` | Roda os testes automatizados (não mexe nos dados reais) |
 
 ## Estrutura
 
 ```
 backend/
 ├── server.js         # Ponto de entrada: Express + Socket.IO + arquivos estáticos
-├── db.js             # Acesso aos dados (arquivo JSON — veja database/ESTRUTURA-DE-DADOS.md)
-├── simulator.js       # Gera eventos falsos para teste/demonstração
+├── db.js             # Único módulo que acessa os dados + regras de negócio
+├── simulator.js      # Gera eventos falsos para teste/demonstração
 ├── routes/
-│   └── api.js        # Rotas REST (/api/resumo, /api/eventos, ...)
+│   └── api.js        # Rotas REST e validação das requisições
+├── test/
+│   └── api.test.js   # Testes automatizados (node:test)
 └── database/
-    ├── ESTRUTURA-DE-DADOS.md  # Documentação do formato dos dados
-    └── dados.json     # Criado automaticamente na primeira execução
+    ├── ESTRUTURA-DE-DADOS.md  # Formato dos dados e por que JSON
+    └── dados.json             # Criado automaticamente na primeira execução
 ```
 
 ## API REST
 
 | Método | Rota | Descrição |
 |---|---|---|
-| GET | `/api/resumo` | Números do dashboard: total no curral, entradas/saídas de hoje, alertas |
-| GET | `/api/baias` | Lista as baias cadastradas e suas capacidades |
+| GET | `/api/resumo` | Números do painel: total no curral, entradas/saídas de hoje, alertas, último evento |
+| GET | `/api/baias` | Baias cadastradas e suas capacidades |
 | GET | `/api/eventos` | Histórico paginado. Filtros: `?baia=A&tipo=entrada&de=2026-08-01&ate=2026-08-09&limit=50&offset=0` |
-| GET | `/api/eventos/exportar` | Baixa um CSV do histórico (mesmos filtros acima) |
-| POST | `/api/eventos` | Cria um evento. Body: `{ "baia": "A", "tipo": "entrada" }` — é essa rota que o navegador chama sozinho quando o Arduino está conectado |
+| GET | `/api/eventos/exportar` | Baixa um CSV do histórico (mesmos filtros) |
+| POST | `/api/eventos` | Registra um evento. Body: `{ "baia": "A", "tipo": "entrada", "origem": "manual" }` |
+
+Validações (respondem `400` com uma mensagem explicando o erro):
+
+- `baia`: uma das cadastradas (A, B, C, D) — maiúscula ou minúscula
+- `tipo`: `entrada` ou `saida`
+- `origem` (opcional, padrão `manual`): `arduino`, `manual`, `demo` ou `simulador`
+- `de` / `ate`: datas no formato `AAAA-MM-DD`
+- `limit`: inteiro de 1 a 5000 · `offset`: inteiro ≥ 0
+
+O CSV usa `;` como separador e UTF-8 com BOM, que é o formato que o Excel
+em português abre direto em colunas.
 
 ## WebSocket (Socket.IO)
 
 | Evento (servidor → navegador) | Quando acontece |
 |---|---|
 | `resumo-inicial` | Assim que o navegador conecta |
-| `novo-evento` | Toda vez que um evento novo é gravado |
+| `novo-evento` | Toda vez que um evento novo é gravado (leva o resumo já recalculado) |
 
-## Por que não usar SQLite/MySQL de verdade?
-
-Ficou documentado em `database/ESTRUTURA-DE-DADOS.md` — resumindo: bancos
-de dados de verdade no Node costumam exigir compilar código nativo na
-instalação, o que trava muita gente no Windows sem as ferramentas de
-build instaladas. Como o volume de dados de um protótipo é pequeno, um
-arquivo JSON dá conta do recado sem esse risco.
+O cliente do Socket.IO é servido pelo próprio servidor em
+`/socket.io/socket.io.js`, então o tempo real funciona sem internet.

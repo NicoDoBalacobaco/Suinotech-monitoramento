@@ -1,51 +1,47 @@
 # SuinoTech — Sistema de Monitoramento de Suínos
 
-Protótipo de TCC: um Arduino simula sensores de entrada/saída em baias
-(currais), e um site mostra os dados em tempo real — dashboard ao vivo,
+Protótipo de TCC (Etec Professor Edson Galvão · Técnico em Desenvolvimento
+de Sistemas · 2026): **rastreamento de entradas e saídas de suínos com
+Arduino e aplicação web**. Um Arduino lê os sensores da entrada e da saída
+de cada baia, e o site mostra os dados em tempo real — painel ao vivo,
 histórico completo e exportação de relatórios.
 
 ```
- [ Botões/Sensores IR ]  →  [ Arduino Uno/Nano ]  →  USB Serial
+ [ Botões / sensores IR ]  →  [ Arduino Uno/Nano ]  →  USB serial (JSON)
                                                           │
                                                           ▼
                               [ Navegador (Chrome/Edge) — Web Serial API ]
                                                           │
                                         POST /api/eventos │  WebSocket
                                                           ▼
-                                          [ Backend Node.js (JSON) ]
+                                       [ Servidor Node.js + arquivo JSON ]
                                                           │
                                                           ▼
-                                          [ Site (Dashboard + Histórico) ]
+                                       [ Site: painel ao vivo + histórico ]
 ```
 
-A conexão com o Arduino é feita **direto pelo navegador**, sem precisar
-instalar nada extra nem configurar porta COM em arquivo nenhum — só
-clicar num botão no site.
+A conexão com o Arduino é feita **direto pelo navegador**, sem instalar
+nada extra nem configurar porta COM — só clicar num botão no site. Tudo
+roda na rede local, **sem depender de internet**.
 
 ## Estrutura do projeto
 
 ```
 suinotech-monitoramento/
-├── hardware/     → Sketch do Arduino (C/C++) + guia de montagem
-├── backend/      → Servidor Node.js (API + WebSocket)
-├── frontend/     → Site (HTML, CSS, JavaScript) — inclui a conexão com o Arduino
-└── README.md     → este arquivo
+├── hardware/   → sketch do Arduino (C++) + guia de montagem
+├── backend/    → servidor Node.js (API REST + WebSocket + testes)
+├── frontend/   → site (HTML, CSS, JavaScript), servido pelo backend
+├── docs/       → guia rápido para o dia da apresentação
+└── README.md   → este arquivo
 ```
-
-Cada pasta representa uma "linguagem"/camada separada, prontas para abrir
-no VSCode:
-
-- **hardware/** → C/C++ (Arduino)
-- **backend/** → JavaScript (Node.js)
-- **frontend/** → HTML, CSS e JavaScript
 
 ## Passo a passo rápido
 
-### 1. Hardware
-Siga `hardware/README.md` para montar os botões/sensores e gravar o
-sketch `hardware/arduino_uno_serial/arduino_uno_serial.ino` no Arduino.
+**1. Hardware** — siga `hardware/README.md` para montar os botões/sensores
+e gravar `hardware/arduino_uno_serial/arduino_uno_serial.ino`.
 
-### 2. Backend (site + dados)
+**2. Servidor (site + dados)** — requer [Node.js](https://nodejs.org) 18+:
+
 ```bash
 cd backend
 npm install
@@ -53,71 +49,54 @@ cp .env.example .env
 npm start
 ```
 
-Abra **http://localhost:3000** no **Chrome ou Edge** — o site já é
-servido pelo próprio backend.
+Abra **http://localhost:3000** no **Chrome ou Edge**.
 
-### 3. Conectar o Arduino
-Na seção Dashboard do site, clique em **"🔌 Conectar Arduino (USB)"** e
-escolha a porta do Arduino na janela que o navegador mostrar. Pronto.
+**3. Conectar o Arduino** — na seção Painel, clique em
+**"Conectar Arduino (USB)"** e escolha a porta do Arduino.
 
-> Ainda não montou o hardware? Use os botões "Simular Entrada/Saída" no
-> dashboard, ou rode `npm run simulate` em outro terminal — o site
-> funciona 100% sem o Arduino conectado, só não recebe dados reais.
+> Sem o hardware? Use os botões "Simular entrada/saída" do painel ou rode
+> `npm run simulate` em outro terminal. O site funciona normalmente sem o
+> Arduino; só não recebe dados reais.
 
-### 4. Frontend
-Não precisa rodar nada à parte — o `backend` já serve os arquivos de
-`frontend/` (HTML/CSS/JS). Se quiser só editar o visual, os arquivos
-estão em:
-- `frontend/index.html` — página institucional do TCC + Dashboard ao vivo
-- `frontend/historico.html` — histórico completo, filtros e exportação CSV
-- `frontend/css/style.css` — todo o estilo visual (tema "Campo": bege, verde-oliva e lima)
-- `frontend/js/arduino-serial.js` — conexão com o Arduino via USB (Web Serial API)
-- `frontend/js/dashboard.js` — liga o Dashboard aos dados reais
-- `frontend/js/historico.js` — liga a tabela de histórico aos dados reais
-- `frontend/js/main.js` — tema, menu, acordeão, abas e contadores (não mexe em dados)
-- `frontend/js/motion.js` — rolagem suave (Lenis), textos e fotos animados (GSAP), rastro de pixels no topo
-- `frontend/js/suino3d.js` + `frontend/js/suino3d/anatomia.js` — suíno 3D (Three.js) com os sensores em volta
-- `frontend/assets/img/` — fotos (Wikimedia Commons, domínio público/CC0)
+**4. Testes automatizados** — `npm test` (na pasta `backend`) confere as
+regras de negócio e a API.
 
-> O suíno 3D, as fontes e as bibliotecas de animação vêm de CDN: na
-> apresentação, deixe o computador com internet. Sem internet, o site
-> continua funcionando e o topo mostra uma foto no lugar do modelo 3D.
-> As leituras biométricas do suíno (temperatura, peso, respiração…) são
-> demonstrativas; a contagem do curral vem do Arduino de verdade.
+## O que o sistema entrega (requisitos do TCC)
 
-## O que o site já entrega (conforme especificado no TCC)
+- ✅ Painel em tempo real (WebSocket): total no curral, entradas e saídas do dia
+- ✅ Ocupação de cada baia com alertas em 85% (atenção) e 100% (crítico)
+- ✅ Registro de cada evento com id, baia, tipo, data, hora e origem
+- ✅ Histórico com filtros (baia, tipo, período) e paginação
+- ✅ Exportação em CSV (abre direto no Excel em português)
+- ✅ Conexão com o Arduino sem instalar nada (Web Serial API)
+- ✅ Funciona sem internet (o modelo 3D e as animações são opcionais)
 
-- ✅ Dashboard em tempo real (WebSocket) com gráficos e contadores
-- ✅ Total no curral, entradas hoje, saídas hoje
-- ✅ Registro de entradas/saídas com data, hora e tipo de evento
-- ✅ Visualização do total de suínos por baia
-- ✅ Histórico completo com filtros (baia, tipo, período) e paginação
-- ✅ Exportação de relatórios em CSV
-- ✅ Alertas automáticos quando uma baia se aproxima/atinge a capacidade
-- ✅ Conexão com o Arduino sem instalar nada extra (Web Serial API)
+> As leituras biométricas do suíno 3D no topo do site (temperatura, peso,
+> respiração…) são **ilustrativas** de versões futuras. A contagem das
+> baias é a única medição real do protótipo.
 
-## Stack utilizada
+## Stack
 
 | Camada | Tecnologia |
 |---|---|
-| Hardware | Arduino Uno/Nano (C/C++), botões ou sensores IR |
-| Comunicação com o Arduino | Web Serial API, direto no navegador (Chrome/Edge) |
-| Backend | Node.js + Express + Socket.IO |
-| Armazenamento | Arquivo JSON (veja `backend/database/ESTRUTURA-DE-DADOS.md`) |
-| Frontend | HTML + CSS + JavaScript puro (sem framework) |
+| Física | Arduino Uno/Nano (C++), botões ou sensores IR |
+| Comunicação | USB serial 9600 baud · Web Serial API (Chrome/Edge) |
+| Servidor | Node.js + Express + Socket.IO |
+| Persistência | Arquivo JSON (veja `backend/database/ESTRUTURA-DE-DADOS.md`) |
+| Interface | HTML + CSS + JavaScript, sem framework · Three.js, GSAP e Lenis (opcionais, via CDN) |
 
-## Por que não usei SQLite/serialport (bibliotecas nativas)?
+Nenhuma dependência exige compilar código nativo: o `npm install` funciona
+de primeira em qualquer computador. O motivo dessa escolha está explicado
+em `backend/database/ESTRUTURA-DE-DADOS.md`.
 
-Elas exigem compilar código C++ na instalação (`node-gyp`), o que trava
-muita gente no Windows sem o Visual Studio Build Tools instalado. Troquei
-por um arquivo JSON (backend) + Web Serial API (navegador) — zero
-dependência nativa, `npm install` funciona de primeira em qualquer
-computador, e a conexão com o Arduino fica ainda mais simples (não
-precisa nem saber o nome da porta COM, o navegador mostra a lista).
+## Limitações conhecidas
 
-## Testado neste ambiente
+As mesmas registradas no TCC (subseção 6.10): não há identificação
+individual dos animais, o Arduino precisa ficar no cabo USB, a captura
+depende do navegador aberto, a persistência é um arquivo único e não há
+login. **Não publique o servidor na internet aberta**: qualquer pessoa com
+acesso poderia registrar eventos.
 
-Backend instalado e testado do zero (sem nenhum aviso de compilação
-nativa), API REST validada (inserção/listagem/filtro de eventos,
-exportação CSV, resumo do dashboard) e arquivos estáticos servidos
-corretamente. Falta só você conectar o Arduino físico pelo botão do site.
+## Licença
+
+Código aberto sob a licença MIT — veja `LICENSE`.

@@ -19,24 +19,38 @@ primeira vez que o servidor roda. Formato:
 }
 ```
 
-- **baias** — lista fixa das 4 baias monitoradas e a capacidade máxima de
-  cada uma (usada para disparar os alertas de "baia cheia").
-- **eventos** — todo entrada/saída registrada, na ordem em que chegou.
+- **baias** — as 4 baias monitoradas e a capacidade máxima de cada uma
+  (usada nos alertas de 85% e 100%).
+- **eventos** — toda entrada/saída registrada, na ordem em que chegou.
   `origem` indica de onde veio: `arduino` (sensor real), `manual` (via
-  API/Postman), `demo` (botões de simulação do dashboard) ou `simulador`
+  API/Postman), `demo` (botões de simulação do painel) ou `simulador`
   (script `npm run simulate`).
-- **proximoId** — contador interno para gerar o próximo `id` de evento.
+- **proximoId** — contador interno para gerar o próximo `id`.
+
+O total de animais de cada baia **não fica gravado**: é recalculado a
+partir dos eventos sempre que alguém pede o resumo. Assim o total nunca
+diverge do histórico.
+
+## Segurança do arquivo
+
+- A gravação é **atômica**: o servidor escreve num arquivo temporário e só
+  então o renomeia por cima do `dados.json`. Se o computador desligar no
+  meio, o arquivo anterior continua inteiro.
+- Se mesmo assim o arquivo estiver corrompido ao iniciar, ele é guardado
+  como `dados.corrompido-<data>.json` e o servidor começa com um arquivo
+  novo, em vez de não subir.
+- Para **zerar os dados** (ex.: antes da apresentação), pare o servidor e
+  apague o `dados.json`; ele é recriado vazio na próxima execução.
 
 ## Por que JSON e não SQLite/MySQL?
 
-Bibliotecas de banco de dados no Node geralmente precisam compilar
-código C++ na instalação (`node-gyp`), o que exige ferramentas pesadas
-(Visual Studio Build Tools no Windows, Xcode no Mac). Isso trava muita
-gente logo no primeiro `npm install`. Como este protótipo lida com um
-volume pequeno de eventos, um arquivo JSON resolve sem exigir nada além
-do Node.js puro.
+Bibliotecas de banco de dados no Node geralmente precisam compilar código
+C++ na instalação (`node-gyp`), o que exige ferramentas pesadas (Visual
+Studio Build Tools no Windows, Xcode no Mac) e trava muita gente no
+primeiro `npm install`. Como o protótipo tem um único processo gravando e
+pouco volume de eventos, um arquivo JSON resolve sem exigir nada além do
+Node.js (requisito RNF04 do TCC).
 
-Se um dia quiser migrar para um banco relacional de verdade, o único
-arquivo que precisa mudar é o `backend/db.js` — as funções
-(`inserirEvento`, `listarEventos`, `obterResumo`...) podem manter a
-mesma assinatura, só a implementação interna muda.
+Para migrar para um banco relacional, só o `backend/db.js` precisa mudar:
+as funções (`inserirEvento`, `listarEventos`, `obterResumo`...) mantêm a
+mesma assinatura e o resto do sistema não percebe a troca (RNF08).
