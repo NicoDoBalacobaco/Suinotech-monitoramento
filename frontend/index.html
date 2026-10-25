@@ -284,7 +284,7 @@
     <article class="trio-item reveal">
       <span class="trio-icon"><svg aria-hidden="true"><use href="#i-plug"/></svg></span>
       <h3>Sensores no galpão</h3>
-      <p>Um sensor na entrada e outro na saída de cada baia registram a passagem dos animais, sem anotação em papel.</p>
+      <p>Dois sensores em sequência na porteira de cada baia percebem a passagem e, pela ordem em que são cortados, se o animal entrou ou saiu.</p>
     </article>
     <article class="trio-item reveal d1">
       <span class="trio-icon"><svg aria-hidden="true"><use href="#i-activity"/></svg></span>
@@ -368,7 +368,7 @@
             <span class="acc-num">01</span><span class="acc-title">Captura automática na porteira</span>
             <svg class="acc-icon" aria-hidden="true"><use href="#i-plus"/></svg>
           </button>
-          <div class="acc-panel" id="acc-1" role="region" aria-labelledby="acc-1-btn"><div><p>Um Arduino Uno lê oito sensores digitais (entrada e saída de quatro baias), filtra acionamentos repetidos com debounce de 250 ms e envia cada evento pela porta USB em formato JSON.</p></div></div>
+          <div class="acc-panel" id="acc-1" role="region" aria-labelledby="acc-1-btn"><div><p>Um Arduino Uno lê dois sensores por porteira (oito no total). A ordem em que o animal corta os feixes indica entrada ou saída, mesmo com vários suínos na baia; o evento segue pela porta USB em formato JSON.</p></div></div>
         </div>
         <div class="acc-item">
           <button type="button" class="acc-trigger" aria-expanded="false" aria-controls="acc-2" id="acc-2-btn">

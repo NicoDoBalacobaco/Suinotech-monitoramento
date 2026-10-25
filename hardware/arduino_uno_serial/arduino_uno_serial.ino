@@ -1,103 +1,140 @@
 /* ─────────────────────────────────────────────────────────
    SuinoTech — Protótipo de Monitoramento de Suínos
-   Arduino Uno / Nano — Sensores de Entrada/Saída das baias
+   Arduino Uno / Nano — Porteiras com detecção de sentido
 
    O QUE ESTE CÓDIGO FAZ
    ----------------------
-   Monitora 4 baias (A, B, C, D). Cada baia tem 2 sensores digitais:
-   um de ENTRADA e um de SAÍDA. Quando o animal passa (ou seja, quando
-   o botão é apertado ou o sensor IR daquela baia é acionado), o
-   Arduino envia uma linha de texto em formato JSON pela porta Serial
-   USB. Quem lê essa linha é o próprio navegador (Chrome/Edge), pela
-   Web Serial API — veja frontend/js/arduino-serial.js.
+   Cada uma das 4 baias (A, B, C, D) tem UMA porteira com DOIS
+   sensores, instalados um atrás do outro no sentido da passagem:
 
-   Exemplo do que é enviado:
+        lado de fora                         lado de dentro
+             │   [EXTERNO]          [INTERNO]   │
+             │       ║                  ║       │
+        ─────┼───────╫──────────────────╫───────┼──── corredor → baia
+                     ║◄── menor que ───►║
+                        o comprimento
+                        de um suíno
+
+   Como o animal é mais comprido que a distância entre os sensores,
+   ele cobre os dois feixes por um instante. A ORDEM em que os feixes
+   são interrompidos e liberados indica o sentido:
+
+     ENTRADA:  externo → externo+interno → interno → livre
+     SAÍDA:    interno → externo+interno → externo → livre
+
+   Se o animal começar a passar e voltar, a sequência se desfaz e
+   nada é registrado. Animais em fila são contados um a um, desde
+   que passem em fila única (corredor estreito) e com um pequeno
+   espaço entre eles. LIMITAÇÃO: dois animais colados (o segundo
+   cobre o sensor externo antes de o primeiro liberar o interno) ou
+   lado a lado produzem a mesma sequência de um animal que recua,
+   e podem ser contados como um só.
+
+   Quando uma passagem termina, o Arduino envia uma linha JSON pela
+   porta USB, que o navegador (Chrome/Edge) lê pela Web Serial API:
      {"baia":"A","evento":"entrada"}
      {"baia":"C","evento":"saida"}
 
-   FUNCIONA COM BOTÃO *OU* SENSOR IR
-   ----------------------------------
-   O código usa INPUT_PULLUP e considera "acionado" quando o pino vai
-   para LOW (nível baixo). Isso vale tanto para:
-     - um botão (push-button) ligado entre o pino e o GND; quanto para
-     - um sensor IR de saída digital ativa em LOW — de barreira
-       (emissor + receptor, o feixe é interrompido) ou de obstáculo
-       (reflexivo, ex.: KY-032, FC-51).
-   Para trocar o botão pelo sensor, basta ligar o fio OUT do sensor
-   no mesmo pino — não precisa mudar nenhuma linha de código.
-
-   TRATAMENTO DE RUÍDO (debounce) — requisito RNF05 do TCC
+   COMO FUNCIONA POR DENTRO (decodificação em quadratura)
    --------------------------------------------------------
-   1) Um contato só muda de estado depois de ficar ESTÁVEL por
-      ESTABILIDADE_MS. Isso filtra a trepidação tanto ao apertar
-      quanto ao SOLTAR o botão.
-   2) Depois de um evento, o mesmo sensor fica bloqueado por
-      DEBOUNCE_MS (250 ms): acionamentos repetidos nesse intervalo
-      são descartados.
-   3) Só a transição solto → acionado gera evento (detecção de borda):
-      segurar o botão não gera eventos repetidos.
+   Os dois sensores formam um estado de 2 bits. Na ordem de uma
+   entrada, os estados são numerados 0 → 1 → 2 → 3 → 0:
+
+       posição 0 = livre      (externo solto,  interno solto)
+       posição 1 = externo    (externo coberto, interno solto)
+       posição 2 = os dois    (externo coberto, interno coberto)
+       posição 3 = interno    (externo solto,  interno coberto)
+
+   Cada mudança para a posição seguinte soma +1 passo; para a
+   anterior, −1. Quando a porteira volta a ficar livre:
+     +4 passos = 1 entrada · −4 = 1 saída · 0 = desistiu (nada)
+
+   SENSORES E RUÍDO
+   -----------------
+   Funciona com sensores IR de barreira (emissor de um lado da
+   passagem, receptor do outro) ou com botões para testar na
+   bancada. Os dois dão nível LOW quando acionados (INPUT_PULLUP).
+   Cada sensor passa por dois filtros antes de entrar na conta:
+     1) a leitura precisa ficar ESTÁVEL por ESTABILIDADE_MS;
+     2) o mesmo sensor não é aceito como acionado de novo antes de
+        DEBOUNCE_MS (250 ms, requisito RNF05 do TCC).
+
+   TESTE COM BOTÕES (sem animais)
+   -------------------------------
+   Simule o corpo do animal cobrindo os dois sensores:
+     entrada: aperte EXTERNO, aperte INTERNO (sem soltar o externo),
+              solte EXTERNO, solte INTERNO.
+     saída:   o mesmo, começando pelo INTERNO.
 
    LIGAÇÕES (Arduino Uno/Nano)
    ----------------------------
-     Baia A - Entrada -> D2      Baia C - Entrada -> D6
-     Baia A - Saída   -> D3      Baia C - Saída   -> D7
-     Baia B - Entrada -> D4      Baia D - Entrada -> D8
-     Baia B - Saída   -> D5      Baia D - Saída   -> D9
+     Baia A - Externo -> D2      Baia C - Externo -> D6
+     Baia A - Interno -> D3      Baia C - Interno -> D7
+     Baia B - Externo -> D4      Baia D - Externo -> D8
+     Baia B - Interno -> D5      Baia D - Interno -> D9
 
      LED indicador (opcional, pode usar o LED da placa) -> D13
      Buzzer passivo (opcional, apita a cada evento)     -> D11
 
-   Cada botão: uma perna no pino digital, a outra no GND.
-   Não precisa de resistor externo — o pull-up interno resolve.
    Veja hardware/README.md para o passo a passo da montagem.
    ───────────────────────────────────────────────────────── */
 
 #include <Arduino.h>
 
-// ── Configuração das baias ──
+// ── Configuração das porteiras ──
 const uint8_t NUM_BAIAS = 4;
 const char* NOMES_BAIAS[NUM_BAIAS] = { "A", "B", "C", "D" };
-const uint8_t PINOS_ENTRADA[NUM_BAIAS] = { 2, 4, 6, 8 };
-const uint8_t PINOS_SAIDA[NUM_BAIAS]   = { 3, 5, 7, 9 };
+const uint8_t PINOS_EXTERNO[NUM_BAIAS] = { 2, 4, 6, 8 };
+const uint8_t PINOS_INTERNO[NUM_BAIAS] = { 3, 5, 7, 9 };
 
 const uint8_t PINO_LED = 13;
 const uint8_t PINO_BUZZER = 11;
 
 // ── Tempos (em milissegundos) ──
-const unsigned long ESTABILIDADE_MS = 30;  // tempo que o sinal precisa ficar parado para valer
-const unsigned long DEBOUNCE_MS = 250;     // intervalo mínimo entre dois eventos do mesmo sensor (RNF05)
-const unsigned long DURACAO_LED_MS = 80;   // quanto tempo o LED fica aceso a cada evento
+const unsigned long ESTABILIDADE_MS = 30;  // o sinal precisa ficar parado este tempo para valer
+const unsigned long DEBOUNCE_MS = 250;     // intervalo mínimo entre dois acionamentos do mesmo sensor (RNF05)
+const unsigned long DURACAO_LED_MS = 80;   // tempo do LED aceso e do bipe a cada evento
 const unsigned int  FREQ_BIPE_HZ = 2000;
 
-// ── Estado de cada sensor ──
+// ── Um sensor com filtro de ruído ──
 struct Sensor {
   uint8_t pino;
-  const char* baia;
-  const char* tipo;              // "entrada" ou "saida"
-  int estadoBruto;               // última leitura crua do pino (pode estar trepidando)
-  int estadoEstavel;             // estado já filtrado (HIGH = solto, LOW = acionado)
+  int bruto;                     // última leitura crua (pode estar trepidando)
+  bool coberto;                  // estado filtrado: true = feixe interrompido / botão apertado
   unsigned long ultimaMudanca;   // quando a leitura crua mudou pela última vez
-  unsigned long ultimoEvento;    // quando o último evento deste sensor foi enviado
+  unsigned long ultimoAcionamento; // quando o sensor foi aceito como coberto pela última vez
 };
 
-const uint8_t NUM_SENSORES = NUM_BAIAS * 2;
-Sensor sensores[NUM_SENSORES];
+// ── Uma porteira = dois sensores + a contagem de passos ──
+struct Porteira {
+  const char* baia;
+  Sensor externo;
+  Sensor interno;
+  uint8_t posicao;  // 0 livre · 1 externo · 2 os dois · 3 interno
+  int passos;       // soma dos passos desde que a porteira ficou ocupada
+  int ultimoSentido; // +1 ou −1: sentido do último passo válido
+};
+
+Porteira porteiras[NUM_BAIAS];
 
 bool ledAceso = false;
-unsigned long ledAcesoEm = 0;    // quando o LED foi aceso pela última vez
+unsigned long ledAcesoEm = 0;
 
 // ─────────────────────────────────────────────────────────
 
 void setup() {
   Serial.begin(9600);
 
-  // Monta a lista de sensores: [A-entrada, A-saída, B-entrada, B-saída, ...]
   for (uint8_t i = 0; i < NUM_BAIAS; i++) {
-    sensores[i * 2]     = { PINOS_ENTRADA[i], NOMES_BAIAS[i], "entrada", HIGH, HIGH, 0, 0 };
-    sensores[i * 2 + 1] = { PINOS_SAIDA[i],   NOMES_BAIAS[i], "saida",   HIGH, HIGH, 0, 0 };
-  }
-  for (uint8_t i = 0; i < NUM_SENSORES; i++) {
-    pinMode(sensores[i].pino, INPUT_PULLUP); // HIGH = solto, graças ao pull-up
+    Porteira &p = porteiras[i];
+    p.baia = NOMES_BAIAS[i];
+    p.externo = { PINOS_EXTERNO[i], HIGH, false, 0, 0 };
+    p.interno = { PINOS_INTERNO[i], HIGH, false, 0, 0 };
+    p.posicao = 0;
+    p.passos = 0;
+    p.ultimoSentido = 0;
+    pinMode(p.externo.pino, INPUT_PULLUP); // HIGH = livre, graças ao pull-up
+    pinMode(p.interno.pino, INPUT_PULLUP);
   }
 
   pinMode(PINO_LED, OUTPUT);
@@ -119,8 +156,8 @@ void setup() {
 void loop() {
   unsigned long agora = millis();
 
-  for (uint8_t i = 0; i < NUM_SENSORES; i++) {
-    verificarSensor(sensores[i], agora);
+  for (uint8_t i = 0; i < NUM_BAIAS; i++) {
+    atualizarPorteira(porteiras[i], agora);
   }
 
   // Apaga o LED sem usar delay(): a leitura dos sensores nunca para
@@ -132,48 +169,85 @@ void loop() {
 }
 
 /**
- * Lê um sensor, filtra a trepidação e — se detectar um novo
- * acionamento válido — envia o evento pela Serial.
+ * Filtra o ruído de um sensor. Devolve true se o estado filtrado mudou.
  */
-void verificarSensor(Sensor &s, unsigned long agora) {
+bool atualizarSensor(Sensor &s, unsigned long agora) {
   int leitura = digitalRead(s.pino);
 
   // A leitura crua mudou: reinicia a contagem de estabilidade
-  if (leitura != s.estadoBruto) {
-    s.estadoBruto = leitura;
+  if (leitura != s.bruto) {
+    s.bruto = leitura;
     s.ultimaMudanca = agora;
-    return;
+    return false;
   }
+  if (agora - s.ultimaMudanca < ESTABILIDADE_MS) return false;
 
-  // Ainda não ficou estável tempo suficiente, ou não mudou de fato
-  if (agora - s.ultimaMudanca < ESTABILIDADE_MS || leitura == s.estadoEstavel) return;
+  bool cobertoAgora = (leitura == LOW);
+  if (cobertoAgora == s.coberto) return false;
 
-  s.estadoEstavel = leitura;
+  // RNF05: o mesmo sensor não volta a ser aceito como coberto antes de 250 ms
+  if (cobertoAgora && s.ultimoAcionamento != 0 && agora - s.ultimoAcionamento < DEBOUNCE_MS) return false;
 
-  // Borda de descida (solto → acionado) fora do intervalo de bloqueio
-  bool acionou = (s.estadoEstavel == LOW);
-  bool foraDoBloqueio = (s.ultimoEvento == 0 || agora - s.ultimoEvento >= DEBOUNCE_MS);
+  s.coberto = cobertoAgora;
+  if (cobertoAgora) s.ultimoAcionamento = agora;
+  return true;
+}
 
-  if (acionou && foraDoBloqueio) {
-    enviarEvento(s.baia, s.tipo);
-    s.ultimoEvento = agora;
-    sinalizar(agora);
+/** Converte o par de sensores na posição 0..3 da sequência de entrada. */
+uint8_t posicaoAtual(const Porteira &p) {
+  if (!p.externo.coberto && !p.interno.coberto) return 0; // livre
+  if ( p.externo.coberto && !p.interno.coberto) return 1; // só o externo
+  if ( p.externo.coberto &&  p.interno.coberto) return 2; // os dois
+  return 3;                                               // só o interno
+}
+
+/**
+ * Lê os dois sensores da porteira, soma os passos da sequência e,
+ * quando a porteira fica livre, registra as entradas ou saídas completas.
+ */
+void atualizarPorteira(Porteira &p, unsigned long agora) {
+  bool mudouExterno = atualizarSensor(p.externo, agora);
+  bool mudouInterno = atualizarSensor(p.interno, agora);
+  if (!mudouExterno && !mudouInterno) return;
+
+  uint8_t nova = posicaoAtual(p);
+  uint8_t diferenca = (nova - p.posicao + 4) % 4;
+
+  if (diferenca == 1) {          // avançou na sequência de entrada
+    p.passos++;
+    p.ultimoSentido = 1;
+  } else if (diferenca == 3) {   // avançou na sequência de saída
+    p.passos--;
+    p.ultimoSentido = -1;
+  } else if (diferenca == 2) {
+    // Os dois sensores mudaram juntos (animal muito rápido): pulou uma
+    // posição. Assume que continuou no mesmo sentido em que vinha.
+    p.passos += 2 * p.ultimoSentido;
+  }
+  p.posicao = nova;
+
+  // Porteira livre: fecha a contagem
+  if (p.posicao == 0) {
+    // Arredonda para o ciclo completo mais próximo (4 passos = 1 animal)
+    int animais = (p.passos >= 0 ? p.passos + 2 : p.passos - 2) / 4;
+    for (int i = 0; i < animais; i++) enviarEvento(p.baia, "entrada", agora);
+    for (int i = 0; i < -animais; i++) enviarEvento(p.baia, "saida", agora);
+    p.passos = 0;
+    p.ultimoSentido = 0;
   }
 }
 
-/** Monta e envia a linha JSON com o evento detectado. */
-void enviarEvento(const char* baia, const char* tipo) {
+/** Monta e envia a linha JSON com o evento detectado e dá o sinal físico. */
+void enviarEvento(const char* baia, const char* tipo, unsigned long agora) {
   Serial.print("{\"baia\":\"");
   Serial.print(baia);
   Serial.print("\",\"evento\":\"");
   Serial.print(tipo);
   Serial.println("\"}");
-}
 
-/** Feedback físico: acende o LED e dá um bipe curto (sem bloquear o loop). */
-void sinalizar(unsigned long agora) {
+  // LED + bipe curto, sem bloquear o loop (tone() com duração não bloqueia)
   digitalWrite(PINO_LED, HIGH);
   ledAceso = true;
   ledAcesoEm = agora;
-  tone(PINO_BUZZER, FREQ_BIPE_HZ, DURACAO_LED_MS); // tone() com duração já é não bloqueante
+  tone(PINO_BUZZER, FREQ_BIPE_HZ, DURACAO_LED_MS);
 }

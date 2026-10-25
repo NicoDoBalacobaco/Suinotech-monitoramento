@@ -2,8 +2,9 @@
 
 Protótipo de TCC (Etec Professor Edson Galvão · Técnico em Desenvolvimento
 de Sistemas · 2026): **rastreamento de entradas e saídas de suínos com
-Arduino e aplicação web**. Um Arduino lê os sensores da entrada e da saída
-de cada baia, e o site mostra os dados em tempo real — painel ao vivo,
+Arduino e aplicação web**. Um Arduino lê dois sensores na porteira de cada
+baia — a ordem em que são cortados diz se o suíno entrou ou saiu — e o site
+mostra os dados em tempo real — painel ao vivo,
 histórico completo e exportação de relatórios.
 
 ```
@@ -79,7 +80,7 @@ regras de negócio e a API.
 
 | Camada | Tecnologia |
 |---|---|
-| Física | Arduino Uno/Nano (C++), botões ou sensores IR |
+| Física | Arduino Uno/Nano (C++), 2 sensores IR por porteira (ou botões na bancada) |
 | Comunicação | USB serial 9600 baud · Web Serial API (Chrome/Edge) |
 | Servidor | Node.js + Express + Socket.IO |
 | Persistência | Arquivo JSON (veja `backend/database/ESTRUTURA-DE-DADOS.md`) |

@@ -1,126 +1,144 @@
-# Hardware — Sensores de entrada/saída (Arduino Uno/Nano)
+# Hardware — Porteiras com detecção de sentido (Arduino Uno/Nano)
 
-Este protótipo detecta a passagem dos animais em cada baia usando
-**botões** (mais simples e confiáveis para a demonstração em bancada) ou
-**sensores IR** com saída digital. O código é o mesmo para os dois, porque
-ambos entregam um sinal LOW quando "detectam a passagem do animal".
+> **Status:** em desenvolvimento. O site funciona sem o Arduino (botões
+> "Simular entrada/saída" e `npm run simulate`), então a demonstração não
+> depende do hardware.
+
+## A ideia: dois sensores por porteira
+
+Como cada baia tem vários suínos, não basta saber que "alguém passou" — é
+preciso saber **para que lado**. Por isso cada porteira tem **dois sensores
+em sequência**, um do lado de fora (EXTERNO) e outro do lado de dentro
+(INTERNO), mais próximos entre si do que o comprimento de um suíno:
+
+```
+   corredor                                        baia
+      │      [EXTERNO]                 [INTERNO]     │
+      │          ║                         ║         │
+  ────┼──────────╫─────────────────────────╫─────────┼────
+                 ║◄──── ~30 cm (menor ────►║
+                      que um suíno)
+```
+
+O animal cobre os dois feixes por um instante, e a **ordem** em que eles são
+cortados e liberados indica o sentido:
+
+| Sequência | Resultado |
+|---|---|
+| externo → os dois → interno → livre | **entrada** |
+| interno → os dois → externo → livre | **saída** |
+| externo → os dois → externo → livre (entrou pela metade e voltou) | nada é registrado |
+
+O sketch faz essa conta com uma técnica chamada **decodificação em
+quadratura** (a mesma dos contadores de pessoas em portas de loja): cada
+mudança para o próximo estado da sequência soma +1, cada mudança para o
+anterior soma −1; quando a porteira fica livre, +4 é uma entrada e −4 é uma
+saída. Os detalhes estão no comentário do topo do `.ino`.
+
+### Limitação
+
+Os animais precisam passar **em fila única** (corredor estreito) e com um
+pequeno espaço entre eles. Dois suínos colados — o segundo cobrindo o
+sensor externo antes de o primeiro liberar o interno — ou lado a lado geram
+a mesma sequência de um animal que recua e podem ser contados como um só.
 
 ## Lista de materiais
 
 | Qtd | Componente |
 |---|---|
 | 1 | Arduino Uno ou Nano |
-| até 8 | Botões (push-button) *ou* sensores IR com saída digital (veja abaixo) |
+| 4 pares (até 8 sensores) | Sensores IR de barreira (emissor + receptor) *ou* botões para teste em bancada |
 | 1 | LED (opcional — pode usar o LED interno, pino 13) |
 | 1 | Resistor de 220 Ω (só se usar LED externo) |
 | 1 | Buzzer/piezo passivo (opcional) |
 | — | Jumpers / protoboard |
 | 1 | Cabo USB (de dados, não só de carga) |
 
-> Não é preciso montar as 4 baias para o protótipo funcionar — dá para
-> montar só a Baia A (2 botões) para a demonstração e mencionar no
-> relatório que as demais seguem o mesmo padrão.
+> Para o protótipo basta montar a porteira da Baia A (2 sensores) e
+> mencionar que as demais seguem o mesmo padrão.
 
 ## Mapa de pinos
 
-| Sinal | Pino Arduino |
-|---|---|
-| Baia A — Entrada | D2 |
-| Baia A — Saída | D3 |
-| Baia B — Entrada | D4 |
-| Baia B — Saída | D5 |
-| Baia C — Entrada | D6 |
-| Baia C — Saída | D7 |
-| Baia D — Entrada | D8 |
-| Baia D — Saída | D9 |
-| LED indicador | D13 (ou o LED da própria placa) |
-| Buzzer (opcional) | D11 |
+| Sinal | Pino | Sinal | Pino |
+|---|---|---|---|
+| Baia A — Externo | D2 | Baia C — Externo | D6 |
+| Baia A — Interno | D3 | Baia C — Interno | D7 |
+| Baia B — Externo | D4 | Baia D — Externo | D8 |
+| Baia B — Interno | D5 | Baia D — Interno | D9 |
+| Buzzer (opcional) | D11 | LED indicador | D13 |
 
-## Como ligar um botão
+## Sensores
+
+**Sensor IR de barreira (recomendado para a porteira):** emissor de um lado
+da passagem, receptor do outro. O animal interrompe o feixe.
+
+```
+  VCC do receptor ──── 5V do Arduino
+  GND do receptor ──── GND do Arduino
+  OUT do receptor ──── pino do sensor (ex: D2 para o externo da Baia A)
+  (o emissor só precisa de VCC e GND)
+```
+
+A saída vai para LOW quando o feixe é interrompido. Receptores com saída em
+coletor aberto dependem do pull-up, que o sketch já liga com `INPUT_PULLUP`.
+
+Sensores IR **de obstáculo** (reflexivos, como KY-032 e FC-51) também dão
+LOW ao detectar algo e funcionam com o mesmo código, mas têm alcance curto
+e variam com a cor do animal — servem para a bancada, não para a granja.
+
+**Botão (teste em bancada):**
 
 ```
   Pino digital (ex: D2) ──── [ BOTÃO ] ──── GND
 ```
 
-Só isso — **não precisa de resistor externo**. O sketch configura o pino
-com `INPUT_PULLUP`: o próprio Arduino mantém o pino em nível alto (HIGH);
-quando o botão fecha o circuito com o GND, o pino cai para LOW e o evento
-é detectado.
+Não precisa de resistor externo: o pull-up interno mantém o pino em HIGH,
+e o botão o leva a LOW.
 
-## Como ligar um sensor IR
+## Testando com botões
 
-Existem dois tipos, e os dois funcionam com o mesmo sketch:
+Com botões, simule o corpo do animal cobrindo os dois sensores ao mesmo
+tempo:
 
-| Tipo | Como detecta | Exemplos |
-|---|---|---|
-| **De barreira** (feixe) | Emissor e receptor ficam um de cada lado da passagem; o animal interrompe o feixe | Pares emissor/receptor de 3 mm ou 5 mm com saída em coletor aberto |
-| **De obstáculo** (reflexivo) | Emissor e receptor ficam lado a lado; detecta a luz refletida pelo animal | KY-032, FC-51 |
+- **Entrada:** aperte EXTERNO → aperte INTERNO (sem soltar o externo) →
+  solte EXTERNO → solte INTERNO.
+- **Saída:** o mesmo, começando pelo INTERNO.
+- Apertar um botão e soltar antes de apertar o outro **não registra nada**
+  — é o comportamento certo (seria um animal que não chegou a passar).
 
-Para uma porteira real, o de **barreira** é o mais indicado (alcance maior
-e menos sensível à cor e à distância do animal). Para a bancada, o de
-obstáculo é mais barato e fácil de encontrar.
+## Como o sketch evita contagem errada
 
-```
-  VCC do sensor  ──── 5V do Arduino
-  GND do sensor  ──── GND do Arduino
-  OUT do sensor  ──── mesmo pino digital do botão que ele substitui (ex: D2)
-```
+1. **Trepidação:** cada leitura precisa ficar **estável por 30 ms** para
+   valer.
+2. **Acionamentos repetidos:** o mesmo sensor não é aceito como acionado de
+   novo antes de **250 ms** (requisito RNF05 do TCC).
+3. **Animal que recua:** a sequência se desfaz e nenhum evento é enviado.
 
-A saída `OUT` desses módulos vai para LOW quando detecta o animal — por
-isso o sketch funciona sem alterar nenhuma linha, seja com botão ou com
-sensor IR. (Os de coletor aberto dependem do pull-up, que o sketch já liga
-com `INPUT_PULLUP`.)
-
-## LED e buzzer (feedback físico, opcional mas recomendado)
+## LED e buzzer (feedback físico, opcional)
 
 ```
   D13 ──── [ resistor 220Ω ] ──── LED (ânodo) ──── LED (cátodo) ──── GND
   D11 ──── Buzzer (+) ──── Buzzer (−) ──── GND
 ```
 
-A cada evento registrado, o Arduino acende o LED e emite um bipe curto —
-assim a banca percebe na hora que o sensor foi acionado.
+A cada entrada ou saída registrada, o Arduino acende o LED e dá um bipe.
 
-## Como o sketch evita contagem dupla
-
-Botões mecânicos "trepidam" por alguns milissegundos ao apertar **e** ao
-soltar. O sketch filtra isso em três camadas (detalhes no comentário do
-topo do `.ino`):
-
-1. o sinal precisa ficar **estável por 30 ms** para a mudança valer;
-2. depois de um evento, o mesmo sensor fica **bloqueado por 250 ms**
-   (requisito RNF05 do TCC);
-3. só a transição **solto → acionado** gera evento — segurar o botão não
-   repete a contagem.
-
-## Gravando o sketch
+## Gravando e testando o sketch
 
 1. Abra `arduino_uno_serial/arduino_uno_serial.ino` na Arduino IDE.
 2. Selecione a placa (Uno ou Nano) e a porta em **Ferramentas**.
-3. Clique em **Carregar** (upload).
-4. Abra o **Monitor Serial** (9600 baud) e aperte os botões — devem
-   aparecer linhas como `{"baia":"A","evento":"entrada"}`. Se aparecer,
-   o hardware está funcionando.
-5. **Feche o Monitor Serial antes de conectar pelo site** — só um
-   programa por vez pode usar a porta USB do Arduino.
+3. Clique em **Carregar**.
+4. Abra o **Monitor Serial** (9600 baud) e faça uma passagem completa — deve
+   aparecer `{"baia":"A","evento":"entrada"}`.
+5. **Feche o Monitor Serial antes de conectar pelo site** — só um programa
+   por vez pode usar a porta USB.
 
-## Conectando ao site (sem instalar nada extra)
+## Conectando ao site
 
-Não é preciso configurar porta COM em arquivo nenhum nem instalar
-biblioteca no backend. A conexão é feita direto pelo navegador:
+1. Abra o site no **Chrome** ou **Edge** (Firefox e Safari não suportam).
+2. Na seção Painel, clique em **"Conectar Arduino (USB)"** e escolha a
+   porta do Arduino.
+3. Cada passagem completa aparece no site na hora.
 
-1. Abra o site no **Google Chrome** ou **Microsoft Edge** (Firefox e
-   Safari não têm suporte a essa função).
-2. Na seção Painel, clique em **"Conectar Arduino (USB)"**.
-3. O navegador mostra uma lista das portas USB do computador — escolha a
-   do Arduino (geralmente tem "Arduino", "USB Serial" ou "CH340" no nome)
-   e clique em Conectar.
-4. Pronto — cada vez que um botão/sensor for acionado, o evento aparece
-   no site na hora.
-
-Isso usa a **Web Serial API**, nativa dos navegadores baseados em Chromium.
-
-## Próximo passo
-
-Depois de validar no Monitor Serial (e fechá-lo!), siga o
-`backend/README.md` para rodar o site e conectar o Arduino pelo botão.
+A conexão usa a **Web Serial API**, nativa dos navegadores baseados em
+Chromium — não é preciso instalar nada nem configurar porta COM.
