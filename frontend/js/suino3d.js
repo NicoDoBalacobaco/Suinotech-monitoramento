@@ -221,7 +221,7 @@ async function iniciar() {
     temp:      { pele: [[0.86, 0.6, 0.02], [0, -1, 0]], cabeca: true, tela: { amplo: [0.86, 0.53], empilhado: [0.79, 0.17], estreito: [0.76, 0.1] } },
     brinco:    { objeto: brinco, normal: [0.3, 0.2, 1], tela: { amplo: [0.84, 0.69], empilhado: [0.87, 0.5], estreito: [0.24, 0.92] } },
     resp:      { pele: [[0.26, -0.04, 0.7], [0, 0, -1]], tela: { amplo: [0.74, 0.85], empilhado: [0.78, 0.85], estreito: [0.76, 0.92] } },
-    peso:      { pele: [[-0.12, 0.8, 0.02], [0, -1, 0]], tela: { amplo: [0.27, 0.5], empilhado: [0.21, 0.17], estreito: [0.24, 0.1] } },
+    peso:      { pele: [[-0.12, 0.8, 0.02], [0, -1, 0]], tela: { amplo: [0.3, 0.57], empilhado: [0.21, 0.17], estreito: [0.24, 0.1] } },
     gpd:       { pele: [[-0.5, 0.06, 0.7], [0, 0, -1]], tela: { amplo: [0.12, 0.64], empilhado: [0.13, 0.5], estreito: [0.5, 0.5] } },
     atividade: { pele: [[-0.47, -0.34, 0.7], [0, 0, -1]], tela: { amplo: [0.21, 0.79], empilhado: [0.22, 0.85], estreito: [0.5, 0.5] } },
   };
