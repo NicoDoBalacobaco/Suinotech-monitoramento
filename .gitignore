@@ -1,4 +1,14 @@
+# Dependências
 node_modules/
+
+# Configuração local
 .env
+
+# Dados gerados pelo servidor (não versionar dados reais)
 backend/database/dados.json
+backend/database/*.tmp
+backend/database/*.corrompido-*.json
+
+# Sistema operacional
 .DS_Store
+Thumbs.db
