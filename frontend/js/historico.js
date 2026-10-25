@@ -61,13 +61,22 @@
     };
   }
 
+  // Escapa texto antes de inserir em HTML: um valor vindo do servidor
+  // nunca pode virar uma tag ou script na página.
+  function escaparHtml(texto) {
+    return String(texto ?? "").replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    })[c]);
+  }
+
+  // Nomes amigáveis para as origens aceitas pelo servidor (RN10)
   function origemLabel(origem) {
     switch (origem) {
       case "arduino": return "Arduino";
       case "manual": return "Manual";
       case "demo": return "Demonstração";
       case "simulador": return "Simulador";
-      default: return origem || "—";
+      default: return escaparHtml(origem) || "—";
     }
   }
 
@@ -118,7 +127,9 @@
 
     try {
       const resp = await fetch(`${API_BASE}/api/eventos?${params.toString()}`);
-      const { eventos, total } = await resp.json();
+      const corpo = await resp.json();
+      if (!resp.ok) throw new Error(corpo.erro || `HTTP ${resp.status}`);
+      const { eventos, total } = corpo;
       if (minhaRequisicao !== requisicaoAtual) return;
 
       definirValor(el.totalFiltro, total);
@@ -133,9 +144,10 @@
             const badgeClasse = ev.tipo === "entrada" ? "badge-tipo-entrada" : "badge-tipo-saida";
             const badgeTexto = ev.tipo === "entrada" ? "Entrada" : "Saída";
             const novo = limiteNovo !== null && Number(ev.id) > limiteNovo ? ' class="is-new"' : "";
+            const baia = escaparHtml(ev.baia);
             return `<tr${novo}>
-              <td class="col-id" data-label="Registro">#${ev.id}</td>
-              <td class="col-baia" data-label="Baia"><span class="baia-cell"><span class="ear-tag ear-tag--sm" aria-hidden="true">${ev.baia}</span>Baia ${ev.baia}</span></td>
+              <td class="col-id" data-label="Registro">#${escaparHtml(ev.id)}</td>
+              <td class="col-baia" data-label="Baia"><span class="baia-cell"><span class="ear-tag ear-tag--sm" aria-hidden="true">${baia}</span>Baia ${baia}</span></td>
               <td data-label="Evento"><span class="badge-tipo ${badgeClasse}"><svg aria-hidden="true"><use href="#i-${ev.tipo === "entrada" ? "in" : "out"}"/></svg>${badgeTexto}</span></td>
               <td data-label="Data">${data}</td>
               <td data-label="Hora">${hora}</td>

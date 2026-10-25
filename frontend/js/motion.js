@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────
-   motion.js — Movimento inspirado na referência (farmminerals.com):
+   motion.js — Animações de apresentação do site:
    pré-carregamento, rolagem suave (Lenis), letras que surgem em
    ordem aleatória (GSAP SplitText), rastro de pixels no topo,
    palavras que acendem ao rolar e fotos com parallax/recorte.

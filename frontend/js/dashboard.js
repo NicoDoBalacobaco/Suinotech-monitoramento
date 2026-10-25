@@ -237,10 +237,17 @@
   // ── Gráfico de barras: movimentações por hora (últimas 7h) ──
   async function atualizarMiniChart() {
     try {
-      const resp = await fetch(`${API_BASE}/api/eventos?limit=500`);
+      // Busca só a partir da data de início da janela (pode ser ontem,
+      // se a janela de 7h atravessar a meia-noite)
+      const agora = new Date();
+      const inicioJanela = new Date(agora.getTime() - 6 * 60 * 60 * 1000);
+      const pad = (n) => String(n).padStart(2, "0");
+      const de = `${inicioJanela.getFullYear()}-${pad(inicioJanela.getMonth() + 1)}-${pad(inicioJanela.getDate())}`;
+
+      const resp = await fetch(`${API_BASE}/api/eventos?de=${de}&limit=5000`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const { eventos } = await resp.json();
 
-      const agora = new Date();
       const buckets = [];
       for (let h = 6; h >= 0; h--) {
         const inicioHora = new Date(agora);

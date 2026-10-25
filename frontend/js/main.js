@@ -23,8 +23,9 @@ window.SuinoUI = {
 };
 
 /* ── ENTRADA ──
-   Sem loader: a página aparece direto. A coreografia do topo roda só na
-   primeira visita da sessão (visitas seguintes não esperam animação). */
+   Marca a página como pronta e lembra (na sessão) que a abertura já foi
+   exibida: o pré-carregamento e a coreografia do topo (motion.js) rodam
+   só na primeira visita; nas seguintes a página aparece direto. */
 requestAnimationFrame(() => {
   root.classList.add('is-ready');
   try { sessionStorage.setItem('st-intro', '1'); } catch (e) { /* modo privado */ }

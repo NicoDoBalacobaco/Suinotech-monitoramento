@@ -9,6 +9,7 @@
 //   Terminal 2:  npm run simulate
 // ─────────────────────────────────────────────────────────
 
+require("dotenv").config(); // usa a mesma PORT do .env que o servidor
 const http = require("http");
 
 const PORT = process.env.PORT || 3000;
@@ -43,7 +44,7 @@ function enviarEvento() {
   );
 
   req.on("error", (err) =>
-    console.error(`[simulador] falha ao conectar no servidor (ele está rodando com "npm start"?): ${err.message}`)
+    console.error(`[simulador] falha ao conectar no servidor (ele está rodando com "npm start"?): ${err.code || err.message}`)
   );
 
   req.write(payload);

@@ -1004,7 +1004,7 @@ html.theme-switching *::before, html.theme-switching *::after { transition: none
 /* ══════════════════════════════════════════════
    EQUIPE / INSTITUCIONAL
 ══════════════════════════════════════════════ */
-.team { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.team { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
 .member { padding: 28px 24px; text-align: left; }
 .member .ear-tag { width: 44px; height: 50px; font-size: 20px; padding-top: 10px; border-radius: 10px 10px 16px 16px; margin-bottom: 20px; }
 .member .ear-tag::before { width: 8px; height: 8px; margin-left: -4px; top: 6px; }
@@ -1129,7 +1129,7 @@ table.tabela-eventos { width: 100%; border-collapse: collapse; font-variant-nume
   .kpis { grid-template-columns: 1fr 1fr; }
   .dash-main { grid-template-columns: 1fr; }
   .dash-side { grid-template-columns: 1fr 1fr; }
-  .team { grid-template-columns: 1fr 1fr; }
+  .team { grid-template-columns: repeat(3, 1fr); } /* 3 alunos + 2 professoras */
 }
 
 @media (max-width: 1024px) {
@@ -1166,6 +1166,7 @@ table.tabela-eventos { width: 100%; border-collapse: collapse; font-variant-nume
 
 @media (max-width: 760px) {
   :root { --nav-h: 64px; }
+  .team { grid-template-columns: 1fr 1fr; }
   .container { padding: 0 20px; }
   #navbar { padding-left: 16px; padding-right: 16px; }
   .section { padding: 96px 0; }
