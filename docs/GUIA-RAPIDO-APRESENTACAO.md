@@ -52,10 +52,17 @@ rodando enquanto vocês explicam o projeto. Também dá para usar os botões
 **"Simular entrada"** / **"Simular saída"** do painel, manualmente.
 
 ### Mostrando o alerta de capacidade (caso de teste CT07)
-Os botões de simulação alternam entre as baias A, B, C e D. Para mostrar
-um alerta mais rápido, deixe o simulador rodando alguns minutos antes de
-chegar nessa parte: ao passar de 26 animais numa baia, aparece o alerta de
-**atenção**; em 30, o **crítico**.
+O alerta de **atenção** aparece quando uma baia chega a 26 animais (85%)
+e o **crítico** em 30. Com os botões ou o simulador isso demora, porque os
+eventos se espalham pelas 4 baias. Para mostrar na hora, abra outro
+terminal (com o servidor rodando) e cole no PowerShell:
+
+```powershell
+1..26 | % { Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/eventos -ContentType application/json -Body '{"baia":"C","tipo":"entrada","origem":"demo"}' }
+```
+
+A baia C fica em atenção. Rode com `1..4` em vez de `1..26` para chegar
+a 30 e mostrar o alerta crítico.
 
 ---
 
