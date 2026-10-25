@@ -1,15 +1,15 @@
 /* ─────────────────────────────────────────────────────────
    SuinoTech — Protótipo de Monitoramento de Suínos
-   Arduino Uno / Nano — Simulação dos sensores de Entrada/Saída
+   Arduino Uno / Nano — Sensores de Entrada/Saída das baias
 
    O QUE ESTE CÓDIGO FAZ
    ----------------------
-   Simula 4 baias (A, B, C, D). Cada baia tem 2 sensores digitais:
-   um de ENTRADA e um de SAÍDA. Quando o "animal passa" (ou seja,
-   quando você aperta o botão / interrompe o sensor IR daquela
-   baia), o Arduino manda uma linha de texto em formato JSON pela
-   porta Serial USB, que o backend Node.js (serial-bridge.js) lê,
-   grava no banco e mostra no site em tempo real.
+   Monitora 4 baias (A, B, C, D). Cada baia tem 2 sensores digitais:
+   um de ENTRADA e um de SAÍDA. Quando o animal passa (ou seja, quando
+   o botão é apertado ou o sensor IR daquela baia é acionado), o
+   Arduino envia uma linha de texto em formato JSON pela porta Serial
+   USB. Quem lê essa linha é o próprio navegador (Chrome/Edge), pela
+   Web Serial API — veja frontend/js/arduino-serial.js.
 
    Exemplo do que é enviado:
      {"baia":"A","evento":"entrada"}
@@ -17,33 +17,39 @@
 
    FUNCIONA COM BOTÃO *OU* SENSOR IR
    ----------------------------------
-   O código usa INPUT_PULLUP e considera "acionado" quando o pino
-   vai para LOW (nível baixo). Isso funciona tanto para:
-     - Um botão/push-button ligado entre o pino e o GND; ou
-     - Um módulo sensor infravermelho (ex: KY-032, FC-51), cuja
-       saída OUT também vai para LOW quando detecta um objeto.
-   Ou seja: para trocar de botão para sensor IR de verdade depois,
-   basta ligar o fio OUT do módulo no mesmo pino — não precisa
-   mudar uma linha de código.
+   O código usa INPUT_PULLUP e considera "acionado" quando o pino vai
+   para LOW (nível baixo). Isso vale tanto para:
+     - um botão (push-button) ligado entre o pino e o GND; quanto para
+     - um sensor IR de saída digital ativa em LOW — de barreira
+       (emissor + receptor, o feixe é interrompido) ou de obstáculo
+       (reflexivo, ex.: KY-032, FC-51).
+   Para trocar o botão pelo sensor, basta ligar o fio OUT do sensor
+   no mesmo pino — não precisa mudar nenhuma linha de código.
+
+   TRATAMENTO DE RUÍDO (debounce) — requisito RNF05 do TCC
+   --------------------------------------------------------
+   1) Um contato só muda de estado depois de ficar ESTÁVEL por
+      ESTABILIDADE_MS. Isso filtra a trepidação tanto ao apertar
+      quanto ao SOLTAR o botão.
+   2) Depois de um evento, o mesmo sensor fica bloqueado por
+      DEBOUNCE_MS (250 ms): acionamentos repetidos nesse intervalo
+      são descartados.
+   3) Só a transição solto → acionado gera evento (detecção de borda):
+      segurar o botão não gera eventos repetidos.
 
    LIGAÇÕES (Arduino Uno/Nano)
    ----------------------------
-     Baia A - Entrada -> pino digital 2
-     Baia A - Saída   -> pino digital 3
-     Baia B - Entrada -> pino digital 4
-     Baia B - Saída   -> pino digital 5
-     Baia C - Entrada -> pino digital 6
-     Baia C - Saída   -> pino digital 7
-     Baia D - Entrada -> pino digital 8
-     Baia D - Saída   -> pino digital 9
+     Baia A - Entrada -> D2      Baia C - Entrada -> D6
+     Baia A - Saída   -> D3      Baia C - Saída   -> D7
+     Baia B - Entrada -> D4      Baia D - Entrada -> D8
+     Baia B - Saída   -> D5      Baia D - Saída   -> D9
 
-     LED indicador (opcional, pode usar o LED_BUILTIN)  -> pino 13
-     Buzzer (opcional, apita a cada evento)              -> pino 11
+     LED indicador (opcional, pode usar o LED da placa) -> D13
+     Buzzer passivo (opcional, apita a cada evento)     -> D11
 
-   Cada botão: uma perna no pino digital, a outra perna no GND.
-   (Não precisa de resistor externo — usamos o pull-up interno.)
-
-   Veja hardware/README.md para o diagrama de ligação completo.
+   Cada botão: uma perna no pino digital, a outra no GND.
+   Não precisa de resistor externo — o pull-up interno resolve.
+   Veja hardware/README.md para o passo a passo da montagem.
    ───────────────────────────────────────────────────────── */
 
 #include <Arduino.h>
@@ -57,35 +63,48 @@ const uint8_t PINOS_SAIDA[NUM_BAIAS]   = { 3, 5, 7, 9 };
 const uint8_t PINO_LED = 13;
 const uint8_t PINO_BUZZER = 11;
 
-const unsigned long DEBOUNCE_MS = 250; // tempo mínimo entre dois acionamentos do mesmo sensor
+// ── Tempos (em milissegundos) ──
+const unsigned long ESTABILIDADE_MS = 30;  // tempo que o sinal precisa ficar parado para valer
+const unsigned long DEBOUNCE_MS = 250;     // intervalo mínimo entre dois eventos do mesmo sensor (RNF05)
+const unsigned long DURACAO_LED_MS = 80;   // quanto tempo o LED fica aceso a cada evento
+const unsigned int  FREQ_BIPE_HZ = 2000;
 
-// Guarda o último instante (millis) em que cada sensor foi acionado,
-// para não registrar o mesmo evento várias vezes seguidas.
-unsigned long ultimoAcionamentoEntrada[NUM_BAIAS];
-unsigned long ultimoAcionamentoSaida[NUM_BAIAS];
+// ── Estado de cada sensor ──
+struct Sensor {
+  uint8_t pino;
+  const char* baia;
+  const char* tipo;              // "entrada" ou "saida"
+  int estadoBruto;               // última leitura crua do pino (pode estar trepidando)
+  int estadoEstavel;             // estado já filtrado (HIGH = solto, LOW = acionado)
+  unsigned long ultimaMudanca;   // quando a leitura crua mudou pela última vez
+  unsigned long ultimoEvento;    // quando o último evento deste sensor foi enviado
+};
 
-// Guarda o último estado lido de cada pino, para detectar a "borda"
-// (o momento exato em que o sensor passa de solto -> acionado).
-int estadoAnteriorEntrada[NUM_BAIAS];
-int estadoAnteriorSaida[NUM_BAIAS];
+const uint8_t NUM_SENSORES = NUM_BAIAS * 2;
+Sensor sensores[NUM_SENSORES];
+
+bool ledAceso = false;
+unsigned long ledAcesoEm = 0;    // quando o LED foi aceso pela última vez
+
+// ─────────────────────────────────────────────────────────
 
 void setup() {
   Serial.begin(9600);
 
+  // Monta a lista de sensores: [A-entrada, A-saída, B-entrada, B-saída, ...]
   for (uint8_t i = 0; i < NUM_BAIAS; i++) {
-    pinMode(PINOS_ENTRADA[i], INPUT_PULLUP);
-    pinMode(PINOS_SAIDA[i], INPUT_PULLUP);
-    estadoAnteriorEntrada[i] = HIGH; // HIGH = solto (não acionado), graças ao pull-up
-    estadoAnteriorSaida[i] = HIGH;
-    ultimoAcionamentoEntrada[i] = 0;
-    ultimoAcionamentoSaida[i] = 0;
+    sensores[i * 2]     = { PINOS_ENTRADA[i], NOMES_BAIAS[i], "entrada", HIGH, HIGH, 0, 0 };
+    sensores[i * 2 + 1] = { PINOS_SAIDA[i],   NOMES_BAIAS[i], "saida",   HIGH, HIGH, 0, 0 };
+  }
+  for (uint8_t i = 0; i < NUM_SENSORES; i++) {
+    pinMode(sensores[i].pino, INPUT_PULLUP); // HIGH = solto, graças ao pull-up
   }
 
   pinMode(PINO_LED, OUTPUT);
   pinMode(PINO_BUZZER, OUTPUT);
   digitalWrite(PINO_LED, LOW);
 
-  // Pequena piscada de "estou vivo" ao ligar
+  // Três piscadas de "estou vivo" ao ligar (caso de teste CT01)
   for (uint8_t i = 0; i < 3; i++) {
     digitalWrite(PINO_LED, HIGH);
     delay(120);
@@ -93,49 +112,53 @@ void setup() {
     delay(120);
   }
 
-  // Avisa o backend que o Arduino terminou de inicializar
+  // Mensagem de prontidão — o site reconhece e ignora esta linha
   Serial.println("{\"status\":\"pronto\"}");
 }
 
 void loop() {
   unsigned long agora = millis();
 
-  for (uint8_t i = 0; i < NUM_BAIAS; i++) {
-    verificarSensor(
-      PINOS_ENTRADA[i], estadoAnteriorEntrada[i], ultimoAcionamentoEntrada[i],
-      agora, NOMES_BAIAS[i], "entrada"
-    );
-    verificarSensor(
-      PINOS_SAIDA[i], estadoAnteriorSaida[i], ultimoAcionamentoSaida[i],
-      agora, NOMES_BAIAS[i], "saida"
-    );
+  for (uint8_t i = 0; i < NUM_SENSORES; i++) {
+    verificarSensor(sensores[i], agora);
+  }
+
+  // Apaga o LED sem usar delay(): a leitura dos sensores nunca para
+  // (a subtração continua correta mesmo quando o millis() reinicia, a cada ~49 dias)
+  if (ledAceso && agora - ledAcesoEm >= DURACAO_LED_MS) {
+    digitalWrite(PINO_LED, LOW);
+    ledAceso = false;
   }
 }
 
 /**
- * Lê um sensor, aplica debounce e — se detectar um novo acionamento —
- * envia o evento correspondente pela Serial em formato JSON.
+ * Lê um sensor, filtra a trepidação e — se detectar um novo
+ * acionamento válido — envia o evento pela Serial.
  */
-void verificarSensor(
-  uint8_t pino,
-  int &estadoAnterior,
-  unsigned long &ultimoAcionamento,
-  unsigned long agora,
-  const char* nomeBaia,
-  const char* tipoEvento
-) {
-  int estadoAtual = digitalRead(pino);
+void verificarSensor(Sensor &s, unsigned long agora) {
+  int leitura = digitalRead(s.pino);
 
-  // Detecta a borda de descida: estava solto (HIGH) e agora está acionado (LOW)
-  bool foiAcionadoAgora = (estadoAnterior == HIGH && estadoAtual == LOW);
-
-  if (foiAcionadoAgora && (agora - ultimoAcionamento) > DEBOUNCE_MS) {
-    enviarEvento(nomeBaia, tipoEvento);
-    ultimoAcionamento = agora;
-    piscarEBipar();
+  // A leitura crua mudou: reinicia a contagem de estabilidade
+  if (leitura != s.estadoBruto) {
+    s.estadoBruto = leitura;
+    s.ultimaMudanca = agora;
+    return;
   }
 
-  estadoAnterior = estadoAtual;
+  // Ainda não ficou estável tempo suficiente, ou não mudou de fato
+  if (agora - s.ultimaMudanca < ESTABILIDADE_MS || leitura == s.estadoEstavel) return;
+
+  s.estadoEstavel = leitura;
+
+  // Borda de descida (solto → acionado) fora do intervalo de bloqueio
+  bool acionou = (s.estadoEstavel == LOW);
+  bool foraDoBloqueio = (s.ultimoEvento == 0 || agora - s.ultimoEvento >= DEBOUNCE_MS);
+
+  if (acionou && foraDoBloqueio) {
+    enviarEvento(s.baia, s.tipo);
+    s.ultimoEvento = agora;
+    sinalizar(agora);
+  }
 }
 
 /** Monta e envia a linha JSON com o evento detectado. */
@@ -147,10 +170,10 @@ void enviarEvento(const char* baia, const char* tipo) {
   Serial.println("\"}");
 }
 
-/** Feedback físico simples: pisca o LED e apita o buzzer por um instante. */
-void piscarEBipar() {
+/** Feedback físico: acende o LED e dá um bipe curto (sem bloquear o loop). */
+void sinalizar(unsigned long agora) {
   digitalWrite(PINO_LED, HIGH);
-  tone(PINO_BUZZER, 2000, 80);
-  delay(80);
-  digitalWrite(PINO_LED, LOW);
+  ledAceso = true;
+  ledAcesoEm = agora;
+  tone(PINO_BUZZER, FREQ_BIPE_HZ, DURACAO_LED_MS); // tone() com duração já é não bloqueante
 }
