@@ -55,6 +55,9 @@ pequeno espaço entre eles. Dois suínos colados — o segundo cobrindo o
 sensor externo antes de o primeiro liberar o interno — ou lado a lado geram
 a mesma sequência de um animal que recua e podem ser contados como um só.
 
+> **Sem o hardware?** Há uma simulação pronta no Wokwi, com o mesmo circuito
+> e o mesmo firmware: veja `simulacao-wokwi/README.md`.
+
 ## Lista de materiais
 
 | Qtd | Componente |

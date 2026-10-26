@@ -1,0 +1,260 @@
+{
+  "version": 1,
+  "author": "SuinoTech",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-arduino-uno",
+      "id": "uno",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led",
+      "top": -70,
+      "left": 330,
+      "attrs": {
+        "color": "red",
+        "label": "D13"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r220",
+      "top": 10,
+      "left": 300,
+      "rotate": 90,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "buzzer",
+      "top": -100,
+      "left": 420,
+      "attrs": {
+        "volume": "0.1"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btnA_ext",
+      "top": 290,
+      "left": -40,
+      "attrs": {
+        "color": "green",
+        "key": "1",
+        "label": "A externo [1]"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btnA_int",
+      "top": 370,
+      "left": -40,
+      "attrs": {
+        "color": "blue",
+        "key": "2",
+        "label": "A interno [2]"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btnB_ext",
+      "top": 290,
+      "left": 60,
+      "attrs": {
+        "color": "green",
+        "key": "3",
+        "label": "B externo [3]"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btnB_int",
+      "top": 370,
+      "left": 60,
+      "attrs": {
+        "color": "blue",
+        "key": "4",
+        "label": "B interno [4]"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btnC_ext",
+      "top": 290,
+      "left": 160,
+      "attrs": {
+        "color": "green",
+        "key": "5",
+        "label": "C externo [5]"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btnC_int",
+      "top": 370,
+      "left": 160,
+      "attrs": {
+        "color": "blue",
+        "key": "6",
+        "label": "C interno [6]"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btnD_ext",
+      "top": 290,
+      "left": 260,
+      "attrs": {
+        "color": "green",
+        "key": "7",
+        "label": "D externo [7]"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btnD_int",
+      "top": 370,
+      "left": 260,
+      "attrs": {
+        "color": "blue",
+        "key": "8",
+        "label": "D interno [8]"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "r220:1",
+      "uno:13",
+      "orange",
+      []
+    ],
+    [
+      "led:A",
+      "r220:2",
+      "orange",
+      []
+    ],
+    [
+      "led:C",
+      "uno:GND.1",
+      "black",
+      []
+    ],
+    [
+      "buzzer:2",
+      "uno:11",
+      "purple",
+      []
+    ],
+    [
+      "buzzer:1",
+      "uno:GND.1",
+      "black",
+      []
+    ],
+    [
+      "btnA_ext:1.l",
+      "uno:2",
+      "green",
+      []
+    ],
+    [
+      "btnA_ext:2.l",
+      "uno:GND.2",
+      "black",
+      []
+    ],
+    [
+      "btnA_int:1.l",
+      "uno:3",
+      "blue",
+      []
+    ],
+    [
+      "btnA_int:2.l",
+      "uno:GND.2",
+      "black",
+      []
+    ],
+    [
+      "btnB_ext:1.l",
+      "uno:4",
+      "green",
+      []
+    ],
+    [
+      "btnB_ext:2.l",
+      "uno:GND.2",
+      "black",
+      []
+    ],
+    [
+      "btnB_int:1.l",
+      "uno:5",
+      "blue",
+      []
+    ],
+    [
+      "btnB_int:2.l",
+      "uno:GND.2",
+      "black",
+      []
+    ],
+    [
+      "btnC_ext:1.l",
+      "uno:6",
+      "green",
+      []
+    ],
+    [
+      "btnC_ext:2.l",
+      "uno:GND.2",
+      "black",
+      []
+    ],
+    [
+      "btnC_int:1.l",
+      "uno:7",
+      "blue",
+      []
+    ],
+    [
+      "btnC_int:2.l",
+      "uno:GND.2",
+      "black",
+      []
+    ],
+    [
+      "btnD_ext:1.l",
+      "uno:8",
+      "green",
+      []
+    ],
+    [
+      "btnD_ext:2.l",
+      "uno:GND.2",
+      "black",
+      []
+    ],
+    [
+      "btnD_int:1.l",
+      "uno:9",
+      "blue",
+      []
+    ],
+    [
+      "btnD_int:2.l",
+      "uno:GND.2",
+      "black",
+      []
+    ]
+  ],
+  "dependencies": {}
+}
