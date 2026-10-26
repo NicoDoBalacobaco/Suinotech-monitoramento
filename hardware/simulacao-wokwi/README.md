@@ -48,8 +48,8 @@ mesmo tempo (o animal cobrindo os dois feixes):
 
 A cada evento o LED pisca e o buzzer apita.
 
-Esse roteiro foi executado automaticamente no Wokwi em 25/10/2026 e todas as
-linhas deram o resultado esperado.
+As três primeiras linhas foram executadas automaticamente no Wokwi em
+25/10/2026 (junto com uma entrada na Baia C) e deram o resultado esperado.
 
 ## Limitação
 
