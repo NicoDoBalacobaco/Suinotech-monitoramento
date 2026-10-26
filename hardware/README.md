@@ -63,7 +63,7 @@ a mesma sequência de um animal que recua e podem ser contados como um só.
 | Qtd | Componente |
 |---|---|
 | 1 | Arduino Uno ou Nano |
-| 4 pares (até 8 sensores) | Sensores IR de barreira (emissor + receptor) *ou* botões para teste em bancada |
+| 8 pares | Sensores IR de barreira — cada par (emissor + receptor) é **um** sensor; são 2 por porteira (externo e interno) × 4 baias. Para teste em bancada, 8 botões substituem os sensores |
 | 1 | LED (opcional — pode usar o LED interno, pino 13) |
 | 1 | Resistor de 220 Ω (só se usar LED externo) |
 | 1 | Buzzer/piezo passivo (opcional) |
