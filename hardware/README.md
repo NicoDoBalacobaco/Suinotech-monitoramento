@@ -35,6 +35,19 @@ mudança para o próximo estado da sequência soma +1, cada mudança para o
 anterior soma −1; quando a porteira fica livre, +4 é uma entrada e −4 é uma
 saída. Os detalhes estão no comentário do topo do `.ino`.
 
+### Instalação na porteira (importante)
+
+- **Altura do feixe: na altura do tronco**, nunca das pernas. Se o feixe passar
+  entre as pernas, ele é liberado e bloqueado várias vezes durante uma única
+  passagem e a sequência se perde. Use a altura do tronco do **menor** animal
+  que passa pela porteira.
+- **Distância entre os sensores:** menor que o comprimento do menor animal
+  (ex.: 30 cm), para que ele cubra os dois feixes por um instante.
+- **Polaridade:** botões e a maioria dos receptores IR dão LOW quando
+  bloqueados. Confira com um multímetro na saída OUT do receptor: com o feixe
+  livre deve marcar ~5 V e, bloqueado, ~0 V. Se for o contrário, troque
+  `NIVEL_ACIONADO` para `HIGH` no topo do sketch.
+
 ### Limitação
 
 Os animais precisam passar **em fila única** (corredor estreito) e com um

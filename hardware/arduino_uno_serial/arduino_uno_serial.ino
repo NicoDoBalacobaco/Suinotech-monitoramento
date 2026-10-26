@@ -87,6 +87,11 @@ const char* NOMES_BAIAS[NUM_BAIAS] = { "A", "B", "C", "D" };
 const uint8_t PINOS_EXTERNO[NUM_BAIAS] = { 2, 4, 6, 8 };
 const uint8_t PINOS_INTERNO[NUM_BAIAS] = { 3, 5, 7, 9 };
 
+// Nível que o sensor entrega quando o feixe é interrompido (ou o botão é
+// apertado). Botões e a maioria dos receptores IR dão LOW. Se o seu módulo
+// der HIGH ao ser bloqueado (confira no Monitor Serial), troque para HIGH.
+const int NIVEL_ACIONADO = LOW;
+
 const uint8_t PINO_LED = 13;
 const uint8_t PINO_BUZZER = 11;
 
@@ -182,7 +187,7 @@ bool atualizarSensor(Sensor &s, unsigned long agora) {
   }
   if (agora - s.ultimaMudanca < ESTABILIDADE_MS) return false;
 
-  bool cobertoAgora = (leitura == LOW);
+  bool cobertoAgora = (leitura == NIVEL_ACIONADO);
   if (cobertoAgora == s.coberto) return false;
 
   // RNF05: o mesmo sensor não volta a ser aceito como coberto antes de 250 ms
